@@ -1,37 +1,63 @@
 @import "tailwindcss";
 
 @theme {
-  --color-border: hsl(216 34% 17%);
-  --color-input: hsl(216 34% 17%);
-  --color-ring: hsl(216 34% 17%);
-  --color-background: hsl(224 71% 4%);
-  --color-foreground: hsl(213 31% 91%);
+  /* Surface hierarchy: background (6%) < card (9%) < muted (13%) */
+  --color-background: hsl(220 20% 6%);
+  --color-card: hsl(220 20% 9%);
+  --color-card-foreground: hsl(220 10% 90%);
+  --color-muted: hsl(220 20% 13%);
+  --color-muted-foreground: hsl(220 10% 55%);
 
-  --color-primary: hsl(210 40% 98%);
-  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
+  /* Borders & inputs */
+  --color-border: hsl(220 15% 18%);
+  --color-input: hsl(220 15% 18%);
+  --color-ring: hsl(174 70% 45%);
 
-  --color-secondary: hsl(222.2 47.4% 11.2%);
-  --color-secondary-foreground: hsl(210 40% 98%);
+  /* Teal accent — lab-instrument identity */
+  --color-primary: hsl(174 70% 45%);
+  --color-primary-foreground: hsl(220 20% 6%);
 
-  --color-destructive: hsl(0 63% 31%);
-  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-secondary: hsl(220 20% 15%);
+  --color-secondary-foreground: hsl(220 10% 90%);
 
-  --color-muted: hsl(223 47% 11%);
-  --color-muted-foreground: hsl(215.4 16.3% 56.9%);
+  --color-destructive: hsl(0 70% 45%);
+  --color-destructive-foreground: hsl(0 0% 100%);
 
-  --color-accent: hsl(216 34% 17%);
-  --color-accent-foreground: hsl(210 40% 98%);
+  --color-accent: hsl(220 20% 15%);
+  --color-accent-foreground: hsl(220 10% 90%);
 
-  --color-popover: hsl(224 71% 4%);
-  --color-popover-foreground: hsl(213 31% 91%);
+  --color-popover: hsl(220 20% 9%);
+  --color-popover-foreground: hsl(220 10% 90%);
 
-  --color-card: hsl(224 71% 4%);
-  --color-card-foreground: hsl(213 31% 91%);
+  --color-foreground: hsl(220 10% 90%);
 
   --radius: 0.5rem;
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-bar-h: 3.5rem;
+}
+
+/* Original color scheme override — toggled via data-theme="original" on <html> */
+[data-theme="original"] {
+  --color-background: hsl(224 71% 4%);
+  --color-card: hsl(224 71% 4%);
+  --color-card-foreground: hsl(213 31% 91%);
+  --color-muted: hsl(223 47% 11%);
+  --color-muted-foreground: hsl(215.4 16.3% 56.9%);
+  --color-border: hsl(216 34% 17%);
+  --color-input: hsl(216 34% 17%);
+  --color-ring: hsl(216 34% 17%);
+  --color-primary: hsl(210 40% 98%);
+  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-secondary: hsl(222.2 47.4% 11.2%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-destructive: hsl(0 63% 31%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-accent: hsl(216 34% 17%);
+  --color-accent-foreground: hsl(210 40% 98%);
+  --color-popover: hsl(224 71% 4%);
+  --color-popover-foreground: hsl(213 31% 91%);
+  --color-foreground: hsl(213 31% 91%);
 }
 
 @layer base {
@@ -45,33 +71,66 @@
   }
 }
 
-/* Touch-friendly slider thumbs */
-input[type="range"]::-webkit-slider-thumb {
+/* Slider */
+input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 1.5rem;
+  width: 100%;
   height: 1.5rem;
-  border-radius: 9999px;
-  background: var(--color-primary);
+  background: transparent;
   cursor: pointer;
 }
 
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-muted);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  margin-top: calc((4px - 1.25rem) / 2);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-muted);
+}
+
 input[type="range"]::-moz-range-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 9999px;
   background: var(--color-primary);
   border: none;
-  cursor: pointer;
 }
 
 @media (min-width: 768px) {
   input[type="range"]::-webkit-slider-thumb {
-    width: 1rem;
-    height: 1rem;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-top: calc((4px - 0.875rem) / 2);
   }
   input[type="range"]::-moz-range-thumb {
-    width: 1rem;
-    height: 1rem;
+    width: 0.875rem;
+    height: 0.875rem;
   }
+}
+
+/* Custom scrollbar for panels */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
 }
