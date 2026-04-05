@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import {
   Settings, Image as ImageIcon, BarChart3, Upload, Trash2,
   Wand2, Grid, ChevronLeft, ChevronRight, Palette, ListTree, Loader2,
-  Menu, X, ChevronDown, ChevronUp, Plus, HelpCircle, Undo2, Redo2, CheckCircle2, PlayCircle, Keyboard, RefreshCw, Camera
+  Menu, X, ChevronDown, ChevronUp, Plus, HelpCircle, Undo2, Redo2, CheckCircle2, PlayCircle, Keyboard, RefreshCw, Camera, SwatchBook
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/context/AppContext'
@@ -32,6 +32,18 @@ function App() {
   const [showTutorial, setShowTutorial] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [colorScheme, setColorScheme] = useState<'labline' | 'midnight'>('midnight')
+  const toggleColorScheme = () => {
+    const next = colorScheme === 'labline' ? 'midnight' : 'labline'
+    setColorScheme(next)
+    if (next === 'midnight') document.documentElement.setAttribute('data-theme', 'original')
+    else document.documentElement.removeAttribute('data-theme')
+  }
+
+  // Apply default theme on mount
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', 'original')
+  }, [])
   const [opencvReady, setOpencvReady] = useState(false)
   const [opencvFailed, setOpencvFailed] = useState(false)
   const [confirmState, setConfirmState] = useState<{ open: boolean; message: string; onConfirm: () => void }>({ open: false, message: '', onConfirm: () => { } })
@@ -267,327 +279,169 @@ function App() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="flex h-12 md:h-12 items-center justify-between border-b bg-card px-2 md:px-4 shrink-0 z-50">
-        <div className="flex items-center gap-2">
-          <img src="/favicon-removebg-preview.png" alt="ChemClub" className="h-5 w-5 md:h-6 md:w-6" />
-          <h1 className="text-xs md:text-sm font-semibold tracking-tight">
-            <span className="hidden sm:inline">ChemClub Analyst</span>
-            <span className="sm:hidden">ChemClub</span>
-            <span className="text-[10px] md:text-xs font-normal text-muted-foreground ml-1">v4.1</span>
-          </h1>
-          {/* OpenCV Status */}
-          <div className="hidden sm:flex items-center ml-2" title={opencvReady ? 'OpenCV ready' : opencvFailed ? 'OpenCV failed to load — click to retry' : 'Loading OpenCV...'}>
+      {/* ═══════════════════ HEADER ═══════════════════ */}
+      <header className="flex h-11 items-center border-b border-border/40 bg-card shrink-0 z-50">
+        {/* Left — Brand */}
+        <div className="flex items-center gap-2.5 px-3 md:px-4 shrink-0">
+          <img src="/favicon-removebg-preview.png" alt="ChemClub" className="h-5 w-5" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] font-semibold tracking-tight text-foreground hidden sm:inline">ChemClub Analyst</span>
+            <span className="text-[13px] font-semibold tracking-tight text-foreground sm:hidden">ChemClub</span>
+            <span className="text-[9px] font-mono font-medium text-muted-foreground bg-muted/60 rounded px-1.5 py-[1px]">4.1</span>
+          </div>
+          {/* OpenCV chip */}
+          <div className="hidden sm:flex items-center" title={opencvReady ? 'OpenCV ready' : opencvFailed ? 'Click to retry' : 'Loading...'}>
             {opencvReady ? (
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+              <span className="flex items-center gap-1 text-[10px] text-green-400"><CheckCircle2 className="h-3 w-3" /> CV</span>
             ) : opencvFailed ? (
-              <button onClick={retryOpenCV} className="flex items-center gap-1 text-destructive hover:text-destructive/80 transition-colors" aria-label="Retry loading OpenCV">
-                <RefreshCw className="h-3.5 w-3.5" />
-                <span className="text-[10px]">Retry</span>
-              </button>
+              <button onClick={retryOpenCV} className="flex items-center gap-1 text-[10px] text-destructive hover:text-destructive/80"><RefreshCw className="h-3 w-3" /> retry</button>
             ) : (
-              <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin" />
+              <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
             )}
           </div>
         </div>
 
-        {/* Desktop Tab Buttons */}
-        <div className="hidden sm:flex items-center gap-1">
-          <Button
-            variant={activeTab === 'detect' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('detect')}
-          >
-            <ImageIcon className="mr-1.5 h-4 w-4" />
-            Detection
-          </Button>
-          <Button
-            variant={activeTab === 'analyze' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('analyze')}
-            data-tutorial="regression-tab"
-          >
-            <BarChart3 className="mr-1.5 h-4 w-4" />
-            Regression
-          </Button>
-        </div>
+        {/* Center — Tabs */}
+        <nav className="flex items-end h-full flex-1 justify-center gap-1">
+          {([['detect', 'Detection', ImageIcon], ['analyze', 'Regression', BarChart3]] as const).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              className={cn(
+                "flex items-center gap-1.5 px-3 h-full text-[13px] font-medium transition-colors border-b-2 -mb-px",
+                activeTab === key
+                  ? "text-primary border-primary"
+                  : "text-muted-foreground hover:text-foreground border-transparent"
+              )}
+              onClick={() => setActiveTab(key as 'detect' | 'analyze')}
+              data-tutorial={key === 'analyze' ? 'regression-tab' : undefined}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{label.slice(0, 6)}</span>
+            </button>
+          ))}
+        </nav>
 
-        {/* Mobile Tab Buttons */}
-        <div className="flex sm:hidden items-center gap-0.5">
-          <Button
-            variant={activeTab === 'detect' ? 'default' : 'ghost'}
-            size="sm"
-            className="px-2.5 h-8"
-            onClick={() => setActiveTab('detect')}
-          >
-            <ImageIcon className="h-4 w-4 mr-1" />
-            <span className="text-[11px]">Detect</span>
+        {/* Right — Actions */}
+        <div className="flex items-center gap-0.5 px-2 md:px-3 shrink-0">
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1.5" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-3.5 w-3.5" /><span className="hidden md:inline">Load</span>
           </Button>
-          <Button
-            variant={activeTab === 'analyze' ? 'default' : 'ghost'}
-            size="sm"
-            className="px-2.5 h-8"
-            onClick={() => setActiveTab('analyze')}
-          >
-            <BarChart3 className="h-4 w-4 mr-1" />
-            <span className="text-[11px]">Regress</span>
+          <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleFileChange} />
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1.5" onClick={() => cameraInputRef.current?.click()}>
+            <Camera className="h-3.5 w-3.5" /><span className="hidden md:inline">Camera</span>
           </Button>
-        </div>
+          <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileChange} />
 
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" className="h-8 px-2 md:px-3" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4 md:mr-1.5" />
-            <span className="hidden md:inline">Load</span>
-          </Button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            multiple
-            accept="image/*"
-            onChange={handleFileChange}
-          />
-          <Button variant="outline" size="sm" className="h-8 px-2 md:px-3" onClick={() => cameraInputRef.current?.click()}>
-            <Camera className="h-4 w-4 md:mr-1.5" />
-            <span className="hidden md:inline">Camera</span>
-          </Button>
-          <input
-            type="file"
-            ref={cameraInputRef}
-            className="hidden"
-            accept="image/*"
-            capture="environment"
-            onChange={handleFileChange}
-          />
-          {/* Undo/Redo */}
-          <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8" onClick={undo} disabled={!canUndo} title="Undo (Cmd+Z)" aria-label="Undo">
-            <Undo2 className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8" onClick={redo} disabled={!canRedo} title="Redo (Cmd+Shift+Z)" aria-label="Redo">
-            <Redo2 className="h-4 w-4" />
-          </Button>
-          {/* Help/Tutorial Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden md:flex h-8 w-8"
-            onClick={() => setShowTutorial(true)}
-            title="Guided Tutorial"
-          >
-            <HelpCircle className="h-4 w-4" />
-          </Button>
-          {/* Keyboard Shortcuts */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden md:flex h-8 w-8"
-            onClick={() => setShowShortcuts(true)}
-            title="Keyboard Shortcuts (?)"
-          >
-            <Keyboard className="h-4 w-4" />
-          </Button>
-          {/* Desktop Settings */}
-          <Button
-            variant={showSettings ? 'default' : 'ghost'}
-            size="icon"
-            className="hidden md:flex h-8 w-8 relative z-30"
-            onClick={() => setShowSettings(!showSettings)}
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-          {/* Mobile Menu */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden h-8 w-8"
-            onClick={() => setMobilePanel(mobilePanel === 'none' ? 'settings' : 'none')}
-          >
-            {mobilePanel !== 'none' ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          <div className="hidden md:block w-px h-4 bg-border/60 mx-1" />
+          <Button variant="ghost" size="icon" className="hidden md:flex h-7 w-7" onClick={undo} disabled={!canUndo} title="Undo"><Undo2 className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="hidden md:flex h-7 w-7" onClick={redo} disabled={!canRedo} title="Redo"><Redo2 className="h-3.5 w-3.5" /></Button>
+          <div className="hidden md:block w-px h-4 bg-border/60 mx-1" />
+          <Button variant="ghost" size="icon" className="hidden md:flex h-7 w-7" onClick={() => setShowTutorial(true)} title="Tutorial"><HelpCircle className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="hidden md:flex h-7 w-7" onClick={() => setShowShortcuts(true)} title="Shortcuts"><Keyboard className="h-3.5 w-3.5" /></Button>
+          <div className="hidden md:block w-px h-4 bg-border/60 mx-1" />
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleColorScheme} title={colorScheme === 'midnight' ? 'Switch to Labline' : 'Switch to Midnight'}><SwatchBook className="h-3.5 w-3.5" /></Button>
+          <Button variant={showSettings ? 'default' : 'ghost'} size="icon" className="hidden md:flex h-7 w-7" onClick={() => setShowSettings(!showSettings)}><Settings className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="md:hidden h-7 w-7" onClick={() => setMobilePanel(mobilePanel === 'none' ? 'settings' : 'none')}>
+            {mobilePanel !== 'none' ? <X className="h-3.5 w-3.5" /> : <Menu className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* ═══════════════════ MAIN ═══════════════════ */}
       <main className="flex-1 flex overflow-hidden relative">
         {activeTab === 'detect' ? (
           <>
-            {/* Left Sidebar - Image Thumbnails (Hidden on Mobile) */}
-            <div className="hidden md:flex w-20 bg-card border-r flex-col shrink-0">
-              <div className="p-2 border-b flex flex-col gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => fileInputRef.current?.click()}
-                  data-tutorial="load-images"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant={isGridView ? 'default' : 'ghost'}
-                  className="w-full"
-                  onClick={() => setIsGridView(!isGridView)}
-                >
-                  <Grid className="h-4 w-4" />
-                </Button>
+            {/* ── Left Sidebar ── */}
+            <aside className="hidden md:flex w-[72px] bg-card border-r border-border/40 flex-col shrink-0">
+              <div className="p-1.5 border-b border-border/40 flex flex-col gap-1">
+                <Button size="sm" variant="outline" className="w-full h-8" onClick={() => fileInputRef.current?.click()} data-tutorial="load-images" title="Add images"><Plus className="h-4 w-4" /></Button>
+                <Button size="sm" variant={isGridView ? 'default' : 'ghost'} className="w-full h-8" onClick={() => setIsGridView(!isGridView)} title="Grid view"><Grid className="h-4 w-4" /></Button>
                 {images.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => showConfirm(
-                      `Clear all ${images.length} image${images.length > 1 ? 's' : ''} and their shapes? This cannot be undone.`,
-                      clearAllImages
-                    )}
-                    title="Clear all images"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <Button size="sm" variant="ghost" className="w-full h-8 text-destructive hover:bg-destructive/10" onClick={() => showConfirm(`Clear all ${images.length} image${images.length > 1 ? 's' : ''}?`, clearAllImages)} title="Clear all"><Trash2 className="h-3.5 w-3.5" /></Button>
                 )}
               </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              <div className="flex-1 overflow-y-auto scrollbar-thin p-1.5 space-y-1.5">
                 {images.map((img, idx) => (
                   <div
                     key={idx}
-                    className={`relative group cursor-pointer rounded overflow-hidden border-2 transition-all ${currentImageIndex === idx
-                      ? 'border-primary ring-2 ring-primary/20'
-                      : 'border-transparent opacity-70 hover:opacity-100'
-                      }`}
-                    onClick={() => {
-                      setCurrentImageIndex(idx)
-                      setIsGridView(false)
-                    }}
+                    className={cn(
+                      "relative group cursor-pointer rounded-md overflow-hidden transition-all",
+                      currentImageIndex === idx
+                        ? "ring-[1.5px] ring-primary shadow-md shadow-primary/15"
+                        : "ring-1 ring-border/30 opacity-70 hover:opacity-100 hover:ring-border"
+                    )}
+                    onClick={() => { setCurrentImageIndex(idx); setIsGridView(false) }}
                   >
                     <img src={img.src} className="w-full aspect-square object-cover" alt={`Image ${idx + 1}`} />
                     <button
                       className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 hover:bg-destructive rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        showConfirm(`Delete image ${idx + 1}?`, () => removeImage(idx))
-                      }}
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-[10px] text-center py-0.5">
-                      {idx + 1}
-                    </div>
+                      onClick={(e) => { e.stopPropagation(); showConfirm(`Delete image ${idx + 1}?`, () => removeImage(idx)) }}
+                    ><X className="h-2.5 w-2.5" /></button>
+                    <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] font-mono text-center py-px text-muted-foreground">{idx + 1}</div>
                   </div>
                 ))}
               </div>
-            </div>
+            </aside>
 
-            {/* Main Canvas Area */}
-            <div className="flex-1 min-w-0 flex flex-col relative bg-neutral-900 overflow-hidden">
-              {/* Toolbar - Responsive (Hide in Grid View) */}
+            {/* ── Canvas Area ── */}
+            <div className="flex-1 min-w-0 flex flex-col relative bg-background overflow-hidden">
+              {/* Floating toolbar */}
               {!isGridView && (
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 md:gap-1 bg-black/70 backdrop-blur-md px-1.5 md:px-2 py-1 rounded-xl shadow-lg">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handlePrevImage} disabled={currentImageIndex === 0} aria-label="Previous image">
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-[10px] md:text-xs w-10 md:w-16 text-center">
-                    {images.length > 0 ? `${currentImageIndex + 1}/${images.length}` : '—'}
-                  </span>
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleNextImage} disabled={currentImageIndex >= images.length - 1} aria-label="Next image">
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <div className="w-px h-4 bg-muted-foreground/30 mx-0.5" />
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleAutoDetect} disabled={images.length === 0 || isDetecting} data-tutorial="autodetect" title="Auto-detect">
-                    {isDetecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleBatchDetect} disabled={images.length === 0 || isDetecting} title="Detect all images">
-                    <PlayCircle className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => clearShapesForImage(currentImageIndex)} disabled={images.length === 0} title="Clear shapes">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  {/* Mobile-only undo/redo */}
+                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 bg-card/95 backdrop-blur-lg border border-border/40 px-1 py-0.5 rounded-lg shadow-xl">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handlePrevImage} disabled={currentImageIndex === 0}><ChevronLeft className="h-3.5 w-3.5" /></Button>
+                  <span className="text-[10px] font-mono w-10 text-center text-muted-foreground">{images.length > 0 ? `${currentImageIndex + 1}/${images.length}` : '—'}</span>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleNextImage} disabled={currentImageIndex >= images.length - 1}><ChevronRight className="h-3.5 w-3.5" /></Button>
+                  <div className="w-px h-3.5 bg-border/40 mx-0.5" />
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleAutoDetect} disabled={images.length === 0 || isDetecting} data-tutorial="autodetect" title="Auto-detect">{isDetecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}</Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleBatchDetect} disabled={images.length === 0 || isDetecting} title="Detect all"><PlayCircle className="h-3.5 w-3.5" /></Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => clearShapesForImage(currentImageIndex)} disabled={images.length === 0} title="Clear"><Trash2 className="h-3.5 w-3.5" /></Button>
                   <div className="flex md:hidden items-center gap-0.5">
-                    <div className="w-px h-4 bg-muted-foreground/30 mx-0.5" />
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={undo} disabled={!canUndo} aria-label="Undo">
-                      <Undo2 className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={redo} disabled={!canRedo} aria-label="Redo">
-                      <Redo2 className="h-4 w-4" />
-                    </Button>
+                    <div className="w-px h-3.5 bg-border/40 mx-0.5" />
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={undo} disabled={!canUndo}><Undo2 className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={redo} disabled={!canRedo}><Redo2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>
               )}
 
-              {/* Mobile Bottom Bar */}
-              <div className="md:hidden absolute bottom-0 left-0 right-0 z-10 flex bg-card/95 backdrop-blur-sm border-t" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-                <button
-                  className={`flex-1 min-h-[44px] py-2.5 text-xs font-medium flex flex-col items-center gap-0.5 ${mobilePanel === 'images' ? 'text-primary bg-muted' : 'text-muted-foreground'}`}
-                  onClick={() => setMobilePanel(mobilePanel === 'images' ? 'none' : 'images')}
-                >
-                  <Grid className="h-5 w-5" />
-                  <span>Images ({images.length})</span>
-                </button>
-                <button
-                  className={`flex-1 min-h-[44px] py-2.5 text-xs font-medium flex flex-col items-center gap-0.5 ${mobilePanel === 'info' ? 'text-primary bg-muted' : 'text-muted-foreground'}`}
-                  onClick={() => setMobilePanel(mobilePanel === 'info' ? 'none' : 'info')}
-                >
-                  <Palette className="h-5 w-5" />
-                  <span>Shapes ({currentShapeCount})</span>
-                </button>
-                <button
-                  className={`flex-1 min-h-[44px] py-2.5 text-xs font-medium flex flex-col items-center gap-0.5 ${mobilePanel === 'settings' ? 'text-primary bg-muted' : 'text-muted-foreground'}`}
-                  onClick={() => setMobilePanel(mobilePanel === 'settings' ? 'none' : 'settings')}
-                >
-                  <Settings className="h-5 w-5" />
-                  <span>Settings</span>
-                </button>
+              {/* Mobile bottom tab bar */}
+              <div className="md:hidden absolute bottom-0 left-0 right-0 z-10 flex bg-card border-t border-border/40" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                {([['images', Grid, `Images (${images.length})`], ['info', Palette, `Data (${currentShapeCount})`], ['settings', Settings, 'Settings']] as const).map(([key, Icon, label]) => (
+                  <button
+                    key={key}
+                    className={cn("flex-1 min-h-[44px] py-2 text-[10px] font-medium flex flex-col items-center gap-0.5 transition-colors", mobilePanel === key ? "text-primary" : "text-muted-foreground")}
+                    onClick={() => setMobilePanel(mobilePanel === key ? 'none' : key as typeof mobilePanel)}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{label}</span>
+                  </button>
+                ))}
               </div>
 
+              {/* Content */}
               {images.length > 0 ? (
                 isGridView ? (
-                  <div className="h-full w-full overflow-y-auto p-4 md:p-6 bg-background/50">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  <div className="h-full w-full overflow-y-auto scrollbar-thin p-4 md:p-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                       {images.map((img, idx) => (
                         <div
                           key={idx}
-                          className={`group relative aspect-square bg-card rounded-lg overflow-hidden border-2 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${currentImageIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'
-                            }`}
-                          onClick={() => {
-                            setCurrentImageIndex(idx)
-                            setIsGridView(false)
-                          }}
+                          className={cn(
+                            "group relative aspect-square rounded-lg overflow-hidden cursor-pointer transition-all border",
+                            currentImageIndex === idx ? "border-primary ring-1 ring-primary/30" : "border-border/40 hover:border-border"
+                          )}
+                          onClick={() => { setCurrentImageIndex(idx); setIsGridView(false) }}
                         >
                           <img src={img.src} alt={`Image ${idx + 1}`} className="w-full h-full object-cover" />
-
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                          <div className="absolute bottom-2 left-2 text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                            Image {idx + 1}
-                          </div>
-
-                          <button
-                            className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-destructive text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              showConfirm(`Delete image ${idx + 1}?`, () => removeImage(idx))
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-
-                          {currentImageIndex === idx && (
-                            <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                              SELECTED
-                            </div>
-                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <span className="absolute bottom-1.5 left-2 text-white text-[11px] font-mono opacity-0 group-hover:opacity-100 transition-opacity">{idx + 1}</span>
+                          <button className="absolute top-1.5 right-1.5 p-1 bg-black/50 hover:bg-destructive text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); showConfirm(`Delete image ${idx + 1}?`, () => removeImage(idx)) }}><Trash2 className="h-3 w-3" /></button>
+                          {currentImageIndex === idx && <span className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded font-mono">SEL</span>}
                         </div>
                       ))}
-
-                      {/* Add Image Card */}
-                      <div
-                        className="aspect-square border-2 border-dashed border-muted rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors group"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <div className="h-12 w-12 rounded-full bg-muted group-hover:bg-background flex items-center justify-center mb-3 transition-colors">
-                          <Plus className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
-                        </div>
-                        <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground">Add Images</span>
+                      <div className="aspect-square border border-dashed border-border rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary/60 hover:bg-muted/20 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                        <Plus className="h-5 w-5 text-muted-foreground mb-1.5" />
+                        <span className="text-[11px] text-muted-foreground">Add</span>
                       </div>
                     </div>
                   </div>
@@ -595,201 +449,110 @@ function App() {
                   <ErrorBoundary fallbackTitle="Image viewer crashed"><ImageViewer /></ErrorBoundary>
                 )
               ) : (
+                /* ── Empty state ── */
                 <div className="h-full w-full flex items-center justify-center pb-16 md:pb-0">
-                  <div className="text-center space-y-6 px-4 max-w-md">
-                    <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                      <ImageIcon className="h-8 w-8 text-primary" />
+                  <div className="text-center space-y-5 px-6 max-w-sm">
+                    <div className="mx-auto w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <ImageIcon className="h-7 w-7 text-primary" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold mb-1">Get Started</h2>
-                      <p className="text-sm text-muted-foreground">Load images of your well plates to begin color analysis and regression.</p>
+                      <h2 className="text-base font-semibold mb-1">Load well plate images</h2>
+                      <p className="text-[13px] text-muted-foreground leading-relaxed">Drag & drop images, or use the buttons below to get started with colorimetric analysis.</p>
                     </div>
-                    <div className="text-left space-y-3 bg-card/50 rounded-lg p-4 border">
-                      <div className="flex items-start gap-3 text-sm">
-                        <span className="shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</span>
-                        <span>Load images using the button below or drag & drop</span>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm">
-                        <span className="shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</span>
-                        <span>Auto-detect or manually draw shapes on wells</span>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm">
-                        <span className="shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">3</span>
-                        <span>Enter concentrations and run regression analysis</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 justify-center flex-wrap">
-                      <Button onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Load Images
-                      </Button>
-                      <Button variant="outline" onClick={() => cameraInputRef.current?.click()}>
-                        <Camera className="mr-2 h-4 w-4" />
-                        Take Photo
-                      </Button>
-                      <Button variant="outline" onClick={() => setShowTutorial(true)}>
-                        <HelpCircle className="mr-2 h-4 w-4" />
-                        Tutorial
-                      </Button>
+                    <ol className="text-left space-y-2 text-[13px] text-muted-foreground">
+                      {['Load well plate images', 'Auto-detect or draw sample regions', 'Enter concentrations & run regression'].map((step, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                          <span className="shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold font-mono mt-px">{i + 1}</span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <div className="flex gap-2 justify-center flex-wrap pt-1">
+                      <Button size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="mr-1.5 h-3.5 w-3.5" />Load Images</Button>
+                      <Button size="sm" variant="outline" onClick={() => cameraInputRef.current?.click()}><Camera className="mr-1.5 h-3.5 w-3.5" />Camera</Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowTutorial(true)}><HelpCircle className="mr-1.5 h-3.5 w-3.5" />Tutorial</Button>
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right Panel - Shapes/Colors (Hidden on Mobile) */}
-            <div className="hidden md:flex w-64 bg-card border-l flex-col shrink-0">
-              <div className="flex border-b">
-                <button
-                  className={`flex-1 py-2 text-xs font-medium transition-colors ${rightPanel === 'shapes' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setRightPanel('shapes')}
-                >
-                  <ListTree className="h-4 w-4 inline mr-1" />
-                  Shapes
-                </button>
-                <button
-                  className={`flex-1 py-2 text-xs font-medium transition-colors ${rightPanel === 'colors' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setRightPanel('colors')}
-                >
-                  <Palette className="h-4 w-4 inline mr-1" />
-                  Colors
-                </button>
+            {/* ── Right Panel ── */}
+            <aside className="hidden md:flex w-60 bg-card border-l border-border/40 flex-col shrink-0">
+              <div className="flex border-b border-border/40">
+                {([['shapes', ListTree, 'Shapes'], ['colors', Palette, 'Colors']] as const).map(([key, Icon, label]) => (
+                  <button
+                    key={key}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium transition-colors border-b-2 -mb-px",
+                      rightPanel === key ? "text-foreground border-primary" : "text-muted-foreground hover:text-foreground border-transparent"
+                    )}
+                    onClick={() => setRightPanel(key as typeof rightPanel)}
+                  >
+                    <Icon className="h-3.5 w-3.5" />{label}
+                  </button>
+                ))}
               </div>
-              <div className="flex-1 overflow-y-auto">
-                {rightPanel === 'shapes' ? <ShapesList /> : <ColorAnalysisPanel />}
-              </div>
-            </div>
+              <div className="flex-1 overflow-y-auto scrollbar-thin">{rightPanel === 'shapes' ? <ShapesList /> : <ColorAnalysisPanel />}</div>
+            </aside>
 
-            {/* Desktop Settings Panel */}
+            {/* Desktop Settings */}
             {showSettings && <div className="hidden md:flex shrink-0"><SettingsPanel /></div>}
 
-            {/* Mobile Slide-up Panels */}
+            {/* ── Mobile Slide-up Panels ── */}
             {mobilePanel !== 'none' && (
               <div className={cn(
-                "md:hidden absolute inset-x-0 z-20 bg-card border-t rounded-t-xl shadow-xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200",
-                mobilePanelHeight === 'full'
-                  ? "top-12 bottom-0"
-                  : "bottom-14 max-h-[60vh]"
+                "md:hidden absolute inset-x-0 z-20 bg-card border-t border-border/40 rounded-t-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200",
+                mobilePanelHeight === 'full' ? "top-11 bottom-0" : "bottom-14 max-h-[60vh]"
               )} style={mobilePanelHeight === 'half' ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}>
-                {/* Drag Handle */}
-                <div
-                  className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none"
-                  onTouchStart={handlePanelDragStart}
-                  onTouchMove={handlePanelDragMove}
-                  onTouchEnd={handlePanelDragEnd}
-                >
-                  <div className="w-10 h-1 rounded-full bg-muted-foreground/40" />
+                <div className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none" onTouchStart={handlePanelDragStart} onTouchMove={handlePanelDragMove} onTouchEnd={handlePanelDragEnd}>
+                  <div className="w-8 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
-                <div className="flex items-center justify-between px-3 pb-2 border-b">
-                  <h3 className="font-semibold text-sm">
-                    {mobilePanel === 'images' && 'Images'}
-                    {mobilePanel === 'info' && 'Shapes & Colors'}
-                    {mobilePanel === 'settings' && 'Settings'}
-                  </h3>
-                  <div className="flex items-center gap-1">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setMobilePanelHeight(mobilePanelHeight === 'full' ? 'half' : 'full')}>
-                      {mobilePanelHeight === 'full' ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setMobilePanel('none'); setMobilePanelHeight('half') }}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                <div className="flex items-center justify-between px-4 pb-2">
+                  <span className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                    {mobilePanel === 'images' && 'Images'}{mobilePanel === 'info' && 'Data'}{mobilePanel === 'settings' && 'Settings'}
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setMobilePanelHeight(mobilePanelHeight === 'full' ? 'half' : 'full')}>{mobilePanelHeight === 'full' ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}</Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setMobilePanel('none'); setMobilePanelHeight('half') }}><X className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto scrollbar-thin border-t border-border/40">
                   {mobilePanel === 'images' && (
-                    <div className="p-3">
-                      <div className="flex gap-2 mb-3">
-                        <Button
-                          className="flex-1"
-                          variant="outline"
-                          onClick={() => {
-                            fileInputRef.current?.click()
-                            setMobilePanel('none')
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-2" /> Add Images
-                        </Button>
+                    <div className="p-3 space-y-3">
+                      <div className="flex gap-2">
+                        <Button className="flex-1" size="sm" variant="outline" onClick={() => { fileInputRef.current?.click(); setMobilePanel('none') }}><Plus className="h-3.5 w-3.5 mr-1.5" /> Add</Button>
                         {images.length > 0 && (
-                          <Button
-                            variant="outline"
-                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                            onClick={() => showConfirm(
-                              `Clear all ${images.length} image${images.length > 1 ? 's' : ''} and their shapes? This cannot be undone.`,
-                              () => {
-                                clearAllImages()
-                                setMobilePanel('none')
-                              }
-                            )}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" /> Clear All
-                          </Button>
+                          <Button size="sm" variant="outline" className="text-destructive border-destructive/30" onClick={() => showConfirm(`Clear all?`, () => { clearAllImages(); setMobilePanel('none') })}><Trash2 className="h-3.5 w-3.5 mr-1.5" /> Clear</Button>
                         )}
                       </div>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
                         {images.map((img, idx) => (
-                          <div
-                            key={idx}
-                            className={`relative cursor-pointer rounded overflow-hidden border-2 ${currentImageIndex === idx ? 'border-primary' : 'border-transparent'}`}
-                          >
-                            <img
-                              src={img.src}
-                              className="w-full aspect-square object-cover"
-                              alt={`Image ${idx + 1}`}
-                              onClick={() => {
-                                setCurrentImageIndex(idx)
-                                setMobilePanel('none')
-                              }}
-                            />
-                            <button
-                              className="absolute top-0.5 right-0.5 w-6 h-6 bg-black/70 hover:bg-destructive rounded-full flex items-center justify-center"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                showConfirm(`Delete image ${idx + 1}?`, () => removeImage(idx))
-                              }}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-[10px] text-center">
-                              {idx + 1}
-                            </div>
+                          <div key={idx} className={cn("relative cursor-pointer rounded-md overflow-hidden border", currentImageIndex === idx ? "border-primary" : "border-border/30")}>
+                            <img src={img.src} className="w-full aspect-square object-cover" alt={`${idx + 1}`} onClick={() => { setCurrentImageIndex(idx); setMobilePanel('none') }} />
+                            <button className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 hover:bg-destructive rounded-full flex items-center justify-center" onClick={(e) => { e.stopPropagation(); showConfirm(`Delete image ${idx + 1}?`, () => removeImage(idx)) }}><X className="h-2.5 w-2.5" /></button>
+                            <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] font-mono text-center py-px">{idx + 1}</div>
                           </div>
                         ))}
                       </div>
-                      {images.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground">
-                          No images loaded
-                        </div>
-                      )}
+                      {images.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">No images loaded</p>}
                     </div>
                   )}
                   {mobilePanel === 'info' && (
-                    <div className="space-y-0">
-                      <div className="flex border-b">
-                        <button
-                          className={`flex-1 py-2.5 text-xs font-medium min-h-[44px] ${rightPanel === 'shapes' ? 'bg-muted' : ''}`}
-                          onClick={() => setRightPanel('shapes')}
-                        >
-                          Shapes
-                        </button>
-                        <button
-                          className={`flex-1 py-2.5 text-xs font-medium min-h-[44px] ${rightPanel === 'colors' ? 'bg-muted' : ''}`}
-                          onClick={() => setRightPanel('colors')}
-                        >
-                          Colors
-                        </button>
+                    <div>
+                      <div className="flex border-b border-border/40">
+                        {([['shapes', 'Shapes'], ['colors', 'Colors']] as const).map(([key, label]) => (
+                          <button key={key} className={cn("flex-1 py-2.5 text-xs font-medium min-h-[44px] border-b-2 -mb-px", rightPanel === key ? "text-foreground border-primary" : "text-muted-foreground border-transparent")} onClick={() => setRightPanel(key as typeof rightPanel)}>{label}</button>
+                        ))}
                       </div>
                       {rightPanel === 'shapes' ? <ShapesList /> : <ColorAnalysisPanel />}
                     </div>
                   )}
                   {mobilePanel === 'settings' && (
                     <div>
-                      <div className="flex gap-2 p-3 border-b">
-                        <Button size="sm" variant="outline" className="flex-1 min-h-[44px]" onClick={() => { setShowTutorial(true); setMobilePanel('none') }}>
-                          <HelpCircle className="h-4 w-4 mr-2" /> Tutorial
-                        </Button>
-                        <Button size="sm" variant="outline" className="flex-1 min-h-[44px]" onClick={() => { setShowShortcuts(true); setMobilePanel('none') }}>
-                          <Keyboard className="h-4 w-4 mr-2" /> Shortcuts
-                        </Button>
+                      <div className="flex gap-2 p-3 border-b border-border/40">
+                        <Button size="sm" variant="outline" className="flex-1 min-h-[44px]" onClick={() => { setShowTutorial(true); setMobilePanel('none') }}><HelpCircle className="h-3.5 w-3.5 mr-1.5" /> Tutorial</Button>
+                        <Button size="sm" variant="outline" className="flex-1 min-h-[44px]" onClick={() => { setShowShortcuts(true); setMobilePanel('none') }}><Keyboard className="h-3.5 w-3.5 mr-1.5" /> Shortcuts</Button>
                       </div>
                       <SettingsPanel />
                     </div>
@@ -800,20 +563,16 @@ function App() {
           </>
         ) : (
           <ErrorBoundary fallbackTitle="Regression studio crashed">
-            <Suspense fallback={
-              <div className="h-full w-full flex items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            }>
+            <Suspense fallback={<div className="h-full w-full flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}>
               <RegressionStudio />
             </Suspense>
           </ErrorBoundary>
         )}
       </main>
 
-      {/* Watermark */}
-      <footer className="hidden md:flex h-6 items-center justify-center bg-card/50 border-t text-[10px] text-muted-foreground shrink-0">
-        Created by Hassaan Vani, Grady Chen, and Jerry Ma
+      {/* Footer — desktop only */}
+      <footer className="hidden md:flex h-5 items-center justify-center border-t border-border/30 text-[10px] font-mono text-muted-foreground/50 shrink-0">
+        Created by: Hassaan Vani, Grady Chen, and Jerry Ma
       </footer>
 
       {/* Tutorial Overlay */}
