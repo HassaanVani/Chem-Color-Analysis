@@ -1,12 +1,75 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useApp } from '@/context/AppContext'
 import { Button } from '@/components/ui/button'
-import { Trash2, ArrowUpDown, ArrowDown, ArrowUp, ArrowRight, ArrowLeft, X } from 'lucide-react'
+import { Trash2, ArrowUpDown, ArrowDown, ArrowUp, ArrowRight, ArrowLeft, X, Pipette } from 'lucide-react'
 import { rgbToCmyk, rgbToHsl, rgbToHsv } from '@/lib/imageUtils'
 import { calibrateColor } from '@/lib/colorCalibration'
 
 type SortDirection = 'top-to-bottom' | 'left-to-right'
 type SortOrder = 'ascending' | 'descending'
+
+function EditableLabel({
+    value,
+    onChange,
+}: {
+    value: string
+    onChange: (v: string) => void
+}) {
+    const [editing, setEditing] = useState(false)
+    const [draft, setDraft] = useState(value)
+    const inputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        setDraft(value)
+    }, [value])
+
+    useEffect(() => {
+        if (editing && inputRef.current) {
+            inputRef.current.focus()
+            inputRef.current.select()
+        }
+    }, [editing])
+
+    if (!editing) {
+        return (
+            <span
+                className="text-sm font-mono font-semibold text-foreground cursor-text hover:text-primary transition-colors"
+                onClick={(e) => {
+                    e.stopPropagation()
+                    setEditing(true)
+                }}
+                title="Click to edit label"
+            >
+                {value}
+            </span>
+        )
+    }
+
+    return (
+        <input
+            ref={inputRef}
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+                onChange(draft)
+                setEditing(false)
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    onChange(draft)
+                    setEditing(false)
+                }
+                if (e.key === 'Escape') {
+                    setDraft(value)
+                    setEditing(false)
+                }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="text-sm font-mono font-semibold text-foreground bg-muted/30 border border-primary/50 rounded px-1.5 py-0.5 outline-none w-20 focus:ring-1 focus:ring-primary/30"
+        />
+    )
+}
 
 export function ShapesList() {
     const {
@@ -43,8 +106,12 @@ export function ShapesList() {
         }
     }
 
+    const formatStdDev = (stdDev: [number, number, number]) => {
+        const avg = Math.round((stdDev[0] + stdDev[1] + stdDev[2]) / 3)
+        return `\u00b1${avg}`
+    }
+
     const handleQuickSort = () => {
-        // Reuse existing labels sorted naturally instead of overwriting with a,b,c...
         const existingLabels = currentShapes.map(s => s.label)
         const sortedLabels = [...existingLabels].sort((a, b) =>
             a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
@@ -69,34 +136,52 @@ export function ShapesList() {
         setShowQuickSort(false)
     }
 
+    // -- Empty state --
     if (currentShapes.length === 0) {
         return (
-            <div className="p-4 text-center text-muted-foreground text-sm">
-                No shapes detected. Draw shapes or use auto-detection.
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <Pipette className="h-8 w-8 text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                    No shapes detected
+                </p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                    Draw regions or use auto-detection to sample colors.
+                </p>
             </div>
         )
     }
 
+    // -- Main list --
     return (
-        <div className="space-y-2 p-2">
-            <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-medium text-muted-foreground">
-                    Detected Shapes ({currentShapes.length})
+        <div className="p-3 space-y-2">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                        Samples
+                    </span>
+                    <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 rounded-full px-2 py-0.5 leading-none">
+                        {currentShapes.length}
+                    </span>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-1">
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                        className="h-6 rounded-full px-2.5 text-[11px] font-medium text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() => clearShapesForImage(currentImageIndex)}
                     >
                         <X className="h-3 w-3 mr-1" />
-                        Clear All
+                        Clear
                     </Button>
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-6 px-2 text-xs"
+                        className={`h-6 rounded-full px-2.5 text-[11px] font-medium ${
+                            showQuickSort
+                                ? 'text-primary bg-primary/10'
+                                : 'text-muted-foreground hover:text-foreground'
+                        }`}
                         onClick={() => setShowQuickSort(!showQuickSort)}
                     >
                         <ArrowUpDown className="h-3 w-3 mr-1" />
@@ -105,34 +190,45 @@ export function ShapesList() {
                 </div>
             </div>
 
+            {/* Sort panel */}
             {showQuickSort && (
-                <div className="p-2 bg-muted/50 rounded-md space-y-2 mb-2">
-                    <div className="text-xs font-medium">Quick Sort Labels</div>
-                    <div className="flex gap-1">
+                <div className="bg-muted/20 border border-border rounded-lg p-3 space-y-2.5">
+                    <div className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                        Sort Labels by Position
+                    </div>
+
+                    <div className="flex gap-1.5">
                         <Button
                             size="sm"
                             variant={sortDirection === 'top-to-bottom' ? 'default' : 'outline'}
-                            className="flex-1 h-7 text-xs"
+                            className="flex-1 h-7 text-xs rounded-md"
                             onClick={() => setSortDirection('top-to-bottom')}
                         >
-                            {sortOrder === 'ascending' ? <ArrowDown className="h-3 w-3 mr-1" /> : <ArrowUp className="h-3 w-3 mr-1" />}
+                            {sortOrder === 'ascending'
+                                ? <ArrowDown className="h-3 w-3 mr-1" />
+                                : <ArrowUp className="h-3 w-3 mr-1" />
+                            }
                             Vertical
                         </Button>
                         <Button
                             size="sm"
                             variant={sortDirection === 'left-to-right' ? 'default' : 'outline'}
-                            className="flex-1 h-7 text-xs"
+                            className="flex-1 h-7 text-xs rounded-md"
                             onClick={() => setSortDirection('left-to-right')}
                         >
-                            {sortOrder === 'ascending' ? <ArrowRight className="h-3 w-3 mr-1" /> : <ArrowLeft className="h-3 w-3 mr-1" />}
+                            {sortOrder === 'ascending'
+                                ? <ArrowRight className="h-3 w-3 mr-1" />
+                                : <ArrowLeft className="h-3 w-3 mr-1" />
+                            }
                             Horizontal
                         </Button>
                     </div>
-                    <div className="flex gap-1">
+
+                    <div className="flex gap-1.5">
                         <Button
                             size="sm"
                             variant={sortOrder === 'ascending' ? 'default' : 'outline'}
-                            className="flex-1 h-7 text-xs"
+                            className="flex-1 h-7 text-xs rounded-md"
                             onClick={() => setSortOrder('ascending')}
                         >
                             Ascending
@@ -140,15 +236,16 @@ export function ShapesList() {
                         <Button
                             size="sm"
                             variant={sortOrder === 'descending' ? 'default' : 'outline'}
-                            className="flex-1 h-7 text-xs"
+                            className="flex-1 h-7 text-xs rounded-md"
                             onClick={() => setSortOrder('descending')}
                         >
                             Descending
                         </Button>
                     </div>
+
                     <Button
                         size="sm"
-                        className="w-full h-7 text-xs"
+                        className="w-full h-8 text-xs rounded-md font-medium"
                         onClick={handleQuickSort}
                     >
                         Apply Sort
@@ -156,47 +253,65 @@ export function ShapesList() {
                 </div>
             )}
 
-            {currentShapes.map(shape => {
-                const c = getColor(shape.color)
-                return (
-                    <div
-                        key={shape.id}
-                        className={`flex items-center gap-2 p-2 rounded-md text-xs cursor-pointer transition-colors ${selectedShapeId === shape.id
-                            ? 'bg-primary/20 ring-1 ring-primary'
-                            : 'bg-muted/50 hover:bg-muted'
-                            }`}
-                        onClick={() => setSelectedShapeId(selectedShapeId === shape.id ? null : shape.id)}
-                    >
+            {/* Shape items */}
+            <div className="space-y-1.5">
+                {currentShapes.map(shape => {
+                    const c = getColor(shape.color)
+                    const isSelected = selectedShapeId === shape.id
+                    const hasStdDev = shape.colorStdDev && (
+                        shape.colorStdDev[0] > 0 || shape.colorStdDev[1] > 0 || shape.colorStdDev[2] > 0
+                    )
+
+                    return (
                         <div
-                            className="w-6 h-6 rounded border flex-shrink-0"
-                            style={{ backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }}
-                        />
-                        <div className="flex-1 min-w-0">
-                            <input
-                                type="text"
-                                value={shape.label}
-                                onChange={(e) => updateShape(shape.id, { label: e.target.value })}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-10 bg-transparent border-b border-transparent hover:border-muted-foreground focus:border-primary outline-none font-mono font-bold"
-                            />
-                            <div className="text-muted-foreground truncate">
-                                {formatColor(shape.color)}
-                            </div>
-                        </div>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6 text-destructive hover:text-destructive"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                removeShape(shape.id)
-                            }}
+                            key={shape.id}
+                            className={`group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                                isSelected
+                                    ? 'border border-primary/50 bg-primary/5'
+                                    : 'border border-border/50 hover:border-border'
+                            }`}
+                            onClick={() => setSelectedShapeId(isSelected ? null : shape.id)}
                         >
-                            <Trash2 className="h-3 w-3" />
-                        </Button>
-                    </div>
-                )
-            })}
+                            {/* Color swatch */}
+                            <div
+                                className="w-8 h-8 rounded-lg shadow-inner border border-white/10 flex-shrink-0"
+                                style={{ backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }}
+                            />
+
+                            {/* Label + color info */}
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                                <EditableLabel
+                                    value={shape.label}
+                                    onChange={(v) => updateShape(shape.id, { label: v })}
+                                />
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-mono text-muted-foreground tracking-wide truncate">
+                                        {formatColor(shape.color)}
+                                    </span>
+                                    {hasStdDev && (
+                                        <span className="text-[10px] font-mono text-muted-foreground/50">
+                                            {formatStdDev(shape.colorStdDev!)}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Delete button — hover reveal */}
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    removeShape(shape.id)
+                                }}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    )
+                })}
+            </div>
         </div>
     )
 }
