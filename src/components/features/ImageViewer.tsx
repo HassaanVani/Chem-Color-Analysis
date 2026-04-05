@@ -792,7 +792,7 @@ export function ImageViewer() {
             />
 
             {/* Drawing Tools */}
-            <div className="absolute top-14 md:top-16 left-2 md:left-4 flex flex-col gap-0.5 bg-black/70 backdrop-blur-md p-1 md:p-1.5 rounded-xl shadow-lg">
+            <div className="absolute top-14 md:top-16 left-2 md:left-4 flex flex-col gap-0.5 bg-card/95 backdrop-blur-lg p-1 md:p-1.5 rounded-lg shadow-xl border border-border/40">
                 <Button
                     size="icon"
                     variant={drawingMode === 'none' ? 'default' : 'ghost'}
@@ -858,7 +858,7 @@ export function ImageViewer() {
             </div>
 
             {/* Zoom/Rotation Controls */}
-            <div className="absolute bottom-18 md:bottom-4 right-2 md:right-4 flex gap-0.5 md:gap-1 bg-black/70 backdrop-blur-md p-1 md:p-1.5 rounded-xl shadow-lg">
+            <div className="absolute bottom-18 md:bottom-4 right-2 md:right-4 flex gap-0.5 md:gap-1 bg-card/95 backdrop-blur-lg p-1 md:p-1.5 rounded-lg shadow-xl border border-border/40">
                 <Button size="icon" variant="ghost" onClick={() => setRotationAngle(rotationAngle - 1)} className="h-8 w-8">
                     <RotateCcw className="h-4 w-4" />
                 </Button>
