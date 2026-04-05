@@ -28,7 +28,7 @@ function BoundInput({ value, onChange, className = '' }: {
         return (
             <button
                 onClick={() => setEditing(true)}
-                className={`text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted px-1 rounded transition-colors cursor-text ${className}`}
+                className={`text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted/60 px-1.5 py-0.5 rounded transition-colors cursor-text ${className}`}
             >
                 {value}
             </button>
@@ -44,7 +44,7 @@ function BoundInput({ value, onChange, className = '' }: {
             onChange={e => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(String(value)); setEditing(false) } }}
-            className={`w-10 text-[10px] font-mono bg-muted text-foreground px-1 rounded outline-none ring-1 ring-primary ${className}`}
+            className={`w-10 text-[11px] font-mono bg-muted text-foreground px-1.5 py-0.5 rounded outline-none ring-1 ring-primary ${className}`}
         />
     )
 }
@@ -69,7 +69,7 @@ function SliderWithBounds({ value, onChange, defaultMin, defaultMax, step = 1 }:
                 min={effectiveMin} max={effectiveMax} step={step}
                 value={value}
                 onChange={e => onChange(step < 1 ? parseFloat(e.target.value) : parseInt(e.target.value))}
-                className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer"
+                className="w-full"
             />
             <div className="flex justify-between">
                 <BoundInput value={bounds.min} onChange={v => setBounds(b => ({ ...b, min: v }))} />
@@ -165,15 +165,20 @@ export function SettingsPanel() {
     }
 
     return (
-        <div className="md:w-72 bg-card md:border-l flex flex-col h-full overflow-hidden">
-            <div className="hidden md:block p-3 border-b bg-muted/50">
-                <h3 className="font-semibold text-sm">Detection Settings</h3>
+        <div className="md:w-72 bg-card md:border-l border-border/50 flex flex-col h-full overflow-hidden">
+            {/* Header — desktop only */}
+            <div className="hidden md:block p-4 border-b border-border/50">
+                <h3 className="text-sm font-semibold">Detection Settings</h3>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-4 text-sm">
-                {/* Detection Mode */}
-                <div className="space-y-2" data-tutorial="detection-mode">
-                    <label className="text-xs font-medium text-muted-foreground">Detection Mode</label>
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-6 text-sm">
+
+                {/* ── Detection Mode ── */}
+                <div className="space-y-2.5" data-tutorial="detection-mode">
+                    <label className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                        Detection Mode
+                    </label>
                     <div className="flex gap-2">
                         <Button
                             size="sm"
@@ -181,7 +186,7 @@ export function SettingsPanel() {
                             onClick={() => updateSetting('mode', 'circle')}
                             className="flex-1"
                         >
-                            <Circle className="w-4 h-4 mr-1" /> Circle
+                            <Circle className="w-4 h-4 mr-1.5" /> Circle
                         </Button>
                         <Button
                             size="sm"
@@ -189,23 +194,25 @@ export function SettingsPanel() {
                             onClick={() => updateSetting('mode', 'rectangle')}
                             className="flex-1"
                         >
-                            <Square className="w-4 h-4 mr-1" /> Square
+                            <Square className="w-4 h-4 mr-1.5" /> Square
                         </Button>
                     </div>
                 </div>
 
-                {/* Circle Parameters */}
+                {/* ── Circle Parameters ── */}
                 {detectionSettings.mode === 'circle' && (
-                    <div className="space-y-3 p-2 bg-muted/30 rounded-md">
-                        <h4 className="text-xs font-medium text-blue-400">Circle Detection (Hough Transform)</h4>
+                    <div className="space-y-4">
+                        <h4 className="text-[11px] uppercase tracking-wider font-medium text-blue-400 border-l-2 border-blue-400 pl-2.5">
+                            Circle Detection
+                        </h4>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Param1 (Edge)
                                     <Tooltip text="Canny edge detection threshold. Higher values detect fewer, stronger edges. Decrease if circles aren't being detected." />
                                 </span>
-                                <span>{detectionSettings.param1}</span>
+                                <span className="font-mono">{detectionSettings.param1}</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.param1}
@@ -214,13 +221,13 @@ export function SettingsPanel() {
                             />
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Param2 (Accum)
                                     <Tooltip text="Circle accumulator threshold. Lower values detect more circles (including false positives). Increase to reduce false detections." />
                                 </span>
-                                <span>{detectionSettings.param2}</span>
+                                <span className="font-mono">{detectionSettings.param2}</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.param2}
@@ -229,14 +236,14 @@ export function SettingsPanel() {
                             />
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Min Radius
                                     <Tooltip text="Minimum circle radius in pixels. Set this to exclude small noise detections." />
                                 </span>
-                                <div className="flex items-center gap-1">
-                                    <span>{detectionSettings.minRadius}px</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-mono">{detectionSettings.minRadius}px</span>
                                     <button
                                         onClick={() => setCalibrationMode('min')}
                                         disabled={images.length === 0}
@@ -253,20 +260,20 @@ export function SettingsPanel() {
                                 defaultMin={1} defaultMax={200}
                             />
                             {calibrationMode === 'min' && (
-                                <div className="text-[10px] text-cyan-400 bg-cyan-500/10 p-1.5 rounded">
+                                <div className="text-[11px] text-cyan-400 bg-cyan-500/10 px-2.5 py-1.5 rounded">
                                     Draw a circle around the <strong>smallest</strong> well to detect
                                 </div>
                             )}
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Max Radius
                                     <Tooltip text="Maximum circle radius in pixels. Set this to exclude large false detections." />
                                 </span>
-                                <div className="flex items-center gap-1">
-                                    <span>{detectionSettings.maxRadius}px</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-mono">{detectionSettings.maxRadius}px</span>
                                     <button
                                         onClick={() => setCalibrationMode('max')}
                                         disabled={images.length === 0}
@@ -283,19 +290,19 @@ export function SettingsPanel() {
                                 defaultMin={10} defaultMax={500}
                             />
                             {calibrationMode === 'max' && (
-                                <div className="text-[10px] text-fuchsia-400 bg-fuchsia-500/10 p-1.5 rounded">
+                                <div className="text-[11px] text-fuchsia-400 bg-fuchsia-500/10 px-2.5 py-1.5 rounded">
                                     Draw a circle around the <strong>largest</strong> well to detect
                                 </div>
                             )}
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Sample Area %
                                     <Tooltip text="Percentage of shape area used for color sampling. Lower values sample only the center." />
                                 </span>
-                                <span>{detectionSettings.restrictedArea}%</span>
+                                <span className="font-mono">{detectionSettings.restrictedArea}%</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.restrictedArea}
@@ -306,18 +313,20 @@ export function SettingsPanel() {
                     </div>
                 )}
 
-                {/* Rectangle Parameters */}
+                {/* ── Rectangle Parameters ── */}
                 {detectionSettings.mode === 'rectangle' && (
-                    <div className="space-y-3 p-2 bg-muted/30 rounded-md">
-                        <h4 className="text-xs font-medium text-green-400">Square Detection (Contour Analysis)</h4>
+                    <div className="space-y-4">
+                        <h4 className="text-[11px] uppercase tracking-wider font-medium text-emerald-400 border-l-2 border-emerald-400 pl-2.5">
+                            Square Detection
+                        </h4>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Min Area
                                     <Tooltip text="Minimum contour area in pixels². Filters out small noise." />
                                 </span>
-                                <span>{detectionSettings.minArea}px²</span>
+                                <span className="font-mono">{detectionSettings.minArea}px²</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.minArea}
@@ -326,13 +335,13 @@ export function SettingsPanel() {
                             />
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Max Area
                                     <Tooltip text="Maximum contour area in pixels². Filters out large regions." />
                                 </span>
-                                <span>{detectionSettings.maxArea}px²</span>
+                                <span className="font-mono">{detectionSettings.maxArea}px²</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.maxArea}
@@ -341,13 +350,13 @@ export function SettingsPanel() {
                             />
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Epsilon
                                     <Tooltip text="Contour approximation accuracy." />
                                 </span>
-                                <span>{detectionSettings.epsilon.toFixed(3)}</span>
+                                <span className="font-mono">{detectionSettings.epsilon.toFixed(3)}</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.epsilon}
@@ -356,13 +365,13 @@ export function SettingsPanel() {
                             />
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">
                                     Sample Area %
                                     <Tooltip text="Percentage of shape area used for color sampling." />
                                 </span>
-                                <span>{detectionSettings.restrictedArea}%</span>
+                                <span className="font-mono">{detectionSettings.restrictedArea}%</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.restrictedArea}
@@ -373,17 +382,19 @@ export function SettingsPanel() {
                     </div>
                 )}
 
-                {/* Image Preprocessing Settings */}
-                <div className="space-y-3 p-2 bg-violet-500/10 rounded-md border border-violet-500/30">
-                    <h4 className="text-xs font-medium text-violet-400">Image Preprocessing</h4>
-                    <p className="text-[10px] text-muted-foreground">
+                {/* ── Image Preprocessing ── */}
+                <div className="space-y-4">
+                    <h4 className="text-[11px] uppercase tracking-wider font-medium text-violet-400 border-l-2 border-violet-400 pl-2.5">
+                        Image Preprocessing
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
                         Enhance image before detection. Useful for poor lighting or low contrast.
                     </p>
 
-                    <div className="space-y-1">
-                        <div className="flex justify-between text-xs items-center">
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs text-muted-foreground">
                             <span className="flex items-center">Brightness<Tooltip text="Adjust overall image brightness." /></span>
-                            <span>{detectionSettings.brightness}</span>
+                            <span className="font-mono">{detectionSettings.brightness}</span>
                         </div>
                         <SliderWithBounds
                             value={detectionSettings.brightness}
@@ -392,10 +403,10 @@ export function SettingsPanel() {
                         />
                     </div>
 
-                    <div className="space-y-1">
-                        <div className="flex justify-between text-xs items-center">
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs text-muted-foreground">
                             <span className="flex items-center">Contrast<Tooltip text="Adjust image contrast." /></span>
-                            <span>{detectionSettings.contrast.toFixed(1)}x</span>
+                            <span className="font-mono">{detectionSettings.contrast.toFixed(1)}x</span>
                         </div>
                         <SliderWithBounds
                             value={detectionSettings.contrast}
@@ -404,10 +415,10 @@ export function SettingsPanel() {
                         />
                     </div>
 
-                    <div className="space-y-1">
-                        <div className="flex justify-between text-xs items-center">
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs text-muted-foreground">
                             <span className="flex items-center">Blur Kernel<Tooltip text="Size of Gaussian blur before detection." /></span>
-                            <span>{detectionSettings.blurKernelSize}px</span>
+                            <span className="font-mono">{detectionSettings.blurKernelSize}px</span>
                         </div>
                         <SliderWithBounds
                             value={detectionSettings.blurKernelSize}
@@ -416,21 +427,25 @@ export function SettingsPanel() {
                         />
                     </div>
 
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs flex items-center">CLAHE<Tooltip text="Contrast Limited Adaptive Histogram Equalization." /></span>
+                    {/* CLAHE Toggle */}
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground flex items-center">
+                            CLAHE
+                            <Tooltip text="Contrast Limited Adaptive Histogram Equalization." />
+                        </span>
                         <button
                             onClick={() => setDetectionSettings(prev => ({ ...prev, claheEnabled: !prev.claheEnabled }))}
-                            className={`w-10 h-5 rounded-full transition-colors ${detectionSettings.claheEnabled ? 'bg-violet-500' : 'bg-muted'}`}
+                            className={`w-9 h-5 rounded-full transition-colors relative ${detectionSettings.claheEnabled ? 'bg-primary' : 'bg-muted'}`}
                         >
-                            <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${detectionSettings.claheEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm absolute top-0.5 transition-transform ${detectionSettings.claheEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                         </button>
                     </div>
 
                     {detectionSettings.claheEnabled && (
-                        <div className="space-y-1 pl-2 border-l-2 border-violet-500/30">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5 pl-3 border-l border-violet-400/30">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">Clip Limit<Tooltip text="Controls contrast amplification." /></span>
-                                <span>{detectionSettings.claheClipLimit.toFixed(1)}</span>
+                                <span className="font-mono">{detectionSettings.claheClipLimit.toFixed(1)}</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.claheClipLimit}
@@ -440,21 +455,25 @@ export function SettingsPanel() {
                         </div>
                     )}
 
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs flex items-center">Sharpening<Tooltip text="Enhances edges using unsharp mask." /></span>
+                    {/* Sharpening Toggle */}
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground flex items-center">
+                            Sharpening
+                            <Tooltip text="Enhances edges using unsharp mask." />
+                        </span>
                         <button
                             onClick={() => setDetectionSettings(prev => ({ ...prev, sharpenEnabled: !prev.sharpenEnabled }))}
-                            className={`w-10 h-5 rounded-full transition-colors ${detectionSettings.sharpenEnabled ? 'bg-violet-500' : 'bg-muted'}`}
+                            className={`w-9 h-5 rounded-full transition-colors relative ${detectionSettings.sharpenEnabled ? 'bg-primary' : 'bg-muted'}`}
                         >
-                            <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${detectionSettings.sharpenEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm absolute top-0.5 transition-transform ${detectionSettings.sharpenEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                         </button>
                     </div>
 
                     {detectionSettings.sharpenEnabled && (
-                        <div className="space-y-1 pl-2 border-l-2 border-violet-500/30">
-                            <div className="flex justify-between text-xs items-center">
+                        <div className="space-y-1.5 pl-3 border-l border-violet-400/30">
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span className="flex items-center">Amount<Tooltip text="Sharpening strength." /></span>
-                                <span>{detectionSettings.sharpenAmount.toFixed(1)}x</span>
+                                <span className="font-mono">{detectionSettings.sharpenAmount.toFixed(1)}x</span>
                             </div>
                             <SliderWithBounds
                                 value={detectionSettings.sharpenAmount}
@@ -465,111 +484,146 @@ export function SettingsPanel() {
                     )}
                 </div>
 
-                {/* Color Mode */}
-                <div className="border-t pt-3 space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Color Mode</label>
-                    <div className="grid grid-cols-4 gap-1">
+                {/* ── Color Display ── */}
+                <div className="space-y-3">
+                    <label className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                        Color Mode
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
                         {(['RGB', 'CMYK', 'HSL', 'HSV'] as const).map(mode => (
-                            <Button key={mode} size="sm" variant={colorMode === mode ? 'default' : 'outline'}
-                                onClick={() => setColorMode(mode)} className="text-xs px-1">
+                            <Button
+                                key={mode}
+                                size="sm"
+                                variant={colorMode === mode ? 'default' : 'outline'}
+                                onClick={() => setColorMode(mode)}
+                                className="text-xs px-1"
+                            >
                                 {mode}
                             </Button>
                         ))}
                     </div>
+
+                    <div className="pt-1">
+                        <label className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                            Raw / Calibrated
+                        </label>
+                        <Button
+                            size="sm"
+                            variant={rawRgbMode ? 'outline' : 'default'}
+                            onClick={() => setRawRgbMode(!rawRgbMode)}
+                            className="w-full mt-2"
+                        >
+                            {rawRgbMode ? 'Raw RGB' : 'Calibrated RGB'}
+                        </Button>
+                    </div>
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Raw/Calibrated</label>
-                    <Button size="sm" variant={rawRgbMode ? 'outline' : 'default'}
-                        onClick={() => setRawRgbMode(!rawRgbMode)} className="w-full">
-                        {rawRgbMode ? 'Raw RGB' : 'Calibrated RGB'}
-                    </Button>
-                </div>
-
-                {/* Color Calibration */}
-                <div className="space-y-3 p-2 bg-emerald-500/10 rounded-md border border-emerald-500/30">
-                    <h4 className="text-xs font-medium text-emerald-400">Color Calibration</h4>
-                    <p className="text-[10px] text-muted-foreground">
+                {/* ── Color Calibration ── */}
+                <div className="space-y-4">
+                    <h4 className="text-[11px] uppercase tracking-wider font-medium text-amber-400 border-l-2 border-amber-400 pl-2.5">
+                        Color Calibration
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
                         Pick white and black reference points from the image for calibrated color values.
                     </p>
 
-                    <div className="space-y-2">
+                    {/* White Reference */}
+                    <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                            <span className="text-xs">White Reference</span>
-                            <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">White Reference</span>
+                            <div className="flex items-center gap-1.5">
                                 {colorCalibration.whiteRef && (
                                     <>
-                                        <div className="w-4 h-4 rounded border"
-                                            style={{ backgroundColor: `rgb(${colorCalibration.whiteRef.join(',')})` }} />
-                                        <span className="text-[10px] font-mono text-muted-foreground">
+                                        <div
+                                            className="w-5 h-5 rounded border border-border"
+                                            style={{ backgroundColor: `rgb(${colorCalibration.whiteRef.join(',')})` }}
+                                        />
+                                        <span className="text-[11px] font-mono text-muted-foreground">
                                             {colorCalibration.whiteRef.join(',')}
                                         </span>
-                                        <button onClick={() => setColorCalibration(prev => ({ ...prev, whiteRef: null }))}
-                                            className="p-0.5 text-muted-foreground hover:text-foreground">
+                                        <button
+                                            onClick={() => setColorCalibration(prev => ({ ...prev, whiteRef: null }))}
+                                            className="p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                                        >
                                             <X className="h-3 w-3" />
                                         </button>
                                     </>
                                 )}
-                                <button onClick={() => setCalibrationMode('white')} disabled={images.length === 0}
-                                    className={`p-1 rounded text-xs ${calibrationMode === 'white' ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'} ${images.length === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                <button
+                                    onClick={() => setCalibrationMode('white')}
+                                    disabled={images.length === 0}
+                                    className={`p-1 rounded transition-colors ${calibrationMode === 'white' ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'} ${images.length === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                >
                                     <Crosshair className="h-3 w-3" />
                                 </button>
                             </div>
                         </div>
                         {calibrationMode === 'white' && (
-                            <div className="text-[10px] text-white bg-white/10 p-1.5 rounded">
+                            <div className="text-[11px] text-white bg-white/10 px-2.5 py-1.5 rounded">
                                 Draw a circle on a <strong>white</strong> area of the image
                             </div>
                         )}
+                    </div>
 
+                    {/* Black Reference */}
+                    <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                            <span className="text-xs">Black Reference</span>
-                            <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Black Reference</span>
+                            <div className="flex items-center gap-1.5">
                                 {colorCalibration.blackRef && (
                                     <>
-                                        <div className="w-4 h-4 rounded border"
-                                            style={{ backgroundColor: `rgb(${colorCalibration.blackRef.join(',')})` }} />
-                                        <span className="text-[10px] font-mono text-muted-foreground">
+                                        <div
+                                            className="w-5 h-5 rounded border border-border"
+                                            style={{ backgroundColor: `rgb(${colorCalibration.blackRef.join(',')})` }}
+                                        />
+                                        <span className="text-[11px] font-mono text-muted-foreground">
                                             {colorCalibration.blackRef.join(',')}
                                         </span>
-                                        <button onClick={() => setColorCalibration(prev => ({ ...prev, blackRef: null }))}
-                                            className="p-0.5 text-muted-foreground hover:text-foreground">
+                                        <button
+                                            onClick={() => setColorCalibration(prev => ({ ...prev, blackRef: null }))}
+                                            className="p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                                        >
                                             <X className="h-3 w-3" />
                                         </button>
                                     </>
                                 )}
-                                <button onClick={() => setCalibrationMode('black')} disabled={images.length === 0}
-                                    className={`p-1 rounded text-xs ${calibrationMode === 'black' ? 'bg-neutral-600/50 text-neutral-300' : 'bg-muted text-muted-foreground hover:text-foreground'} ${images.length === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                <button
+                                    onClick={() => setCalibrationMode('black')}
+                                    disabled={images.length === 0}
+                                    className={`p-1 rounded transition-colors ${calibrationMode === 'black' ? 'bg-neutral-600/50 text-neutral-300' : 'bg-muted text-muted-foreground hover:text-foreground'} ${images.length === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                >
                                     <Crosshair className="h-3 w-3" />
                                 </button>
                             </div>
                         </div>
                         {calibrationMode === 'black' && (
-                            <div className="text-[10px] text-neutral-300 bg-neutral-600/20 p-1.5 rounded">
+                            <div className="text-[11px] text-neutral-300 bg-neutral-600/20 px-2.5 py-1.5 rounded">
                                 Draw a circle on a <strong>black</strong> area of the image
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Cache Management */}
-                <div className="border-t pt-3 space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                {/* ── Cache Management ── */}
+                <div className="space-y-3">
+                    <label className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground flex items-center gap-1.5">
                         <Database className="w-3 h-3" />
                         Browser Cache
                     </label>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
                         Your work is automatically saved to browser storage and restored when you return.
                     </p>
+
                     <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${cacheExists ? 'bg-green-500' : 'bg-muted'}`} />
                         <span className="text-xs text-muted-foreground">
                             {cacheExists ? 'Cache active' : 'No cached data'}
                         </span>
                     </div>
+
                     {storageInfo && storageInfo.quota > 0 && (
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between text-[11px] text-muted-foreground">
                                 <span>{formatBytes(storageInfo.used)} used</span>
                                 <span>{formatBytes(storageInfo.quota)} total</span>
                             </div>
@@ -583,10 +637,11 @@ export function SettingsPanel() {
                                 />
                             </div>
                             {storageInfo.used / storageInfo.quota > 0.9 && (
-                                <p className="text-[10px] text-red-400">Storage nearly full. Consider clearing cache.</p>
+                                <p className="text-[11px] text-red-400">Storage nearly full. Consider clearing cache.</p>
                             )}
                         </div>
                     )}
+
                     <Button
                         size="sm"
                         variant="outline"
@@ -594,7 +649,7 @@ export function SettingsPanel() {
                         disabled={isClearing || !cacheExists}
                         className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
-                        <Trash2 className="w-4 h-4 mr-1" />
+                        <Trash2 className="w-4 h-4 mr-1.5" />
                         {isClearing ? 'Clearing...' : 'Clear Cache'}
                     </Button>
                 </div>
