@@ -2,19 +2,32 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { useApp } from '@/context/AppContext'
 import type { Shape } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
-import { ZoomIn, ZoomOut, Maximize, MousePointer2, Circle, Square, RotateCcw, RotateCw, Crop, X, Eye, EyeOff } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize, MousePointer2, Circle, Square, RotateCcw, RotateCw, Crop, X, Eye, EyeOff, Thermometer, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { extractColorFromShape, extractColorStats } from '@/lib/imageUtils'
+import { extractColorFromShape, extractColorStats, rgbToCmyk } from '@/lib/imageUtils'
+import { calibrateColor } from '@/lib/colorCalibration'
 import { isOpenCVReady } from '@/lib/opencvUtils'
 import { hitTestShape, getCursorForHit, type HitResult } from '@/hooks/useShapeDrag'
+import { computeHeatmapColor } from '@/lib/plateUtils'
+import type { PlateOverlayState } from '@/types'
 
-export function ImageViewer() {
+type ColorChannel = 'red' | 'green' | 'blue' | 'cyan' | 'magenta' | 'yellow' | 'black' | 'magnitude'
+
+interface ImageViewerProps {
+    plateOverlay?: PlateOverlayState | null
+    setPlateOverlay?: (overlay: PlateOverlayState | null) => void
+    onConfirmPlate?: () => void
+}
+
+export function ImageViewer({ plateOverlay, setPlateOverlay, onConfirmPlate }: ImageViewerProps = {}) {
     const {
         images, currentImageIndex, setCurrentImageIndex, shapes, addShape, updateShape, setSelectedShapeId,
         zoomLevel, setZoomLevel, rotationAngle, setRotationAngle,
         detectionSettings, setDetectionSettings, selectedShapeId,
         boundingBox, setBoundingBox,
-        calibrationMode, setCalibrationMode, setColorCalibration
+        calibrationMode, setCalibrationMode, setColorCalibration,
+        heatmapMode, setHeatmapMode, heatmapChannel, setHeatmapChannel,
+        rawRgbMode, colorCalibration
     } = useApp()
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -48,6 +61,9 @@ export function ImageViewer() {
         startPt: { x: number; y: number }
         startShape: { x: number; y: number; width?: number; height?: number; radius?: number }
     } | null>(null)
+
+    const [plateDragCorner, setPlateDragCorner] = useState<string | null>(null)
+    const [plateDragStart, setPlateDragStart] = useState<{ x: number; y: number; overlay: PlateOverlayState } | null>(null)
 
     const currentImage = images[currentImageIndex]
 
@@ -268,6 +284,104 @@ export function ImageViewer() {
             ctx.fillText(shape.label, labelX, labelY)
         })
 
+        // Heatmap overlay
+        if (heatmapMode && currentShapes.length > 0) {
+            const getChannelValue = (color: [number, number, number], ch: string): number => {
+                const c = rawRgbMode ? color : calibrateColor(color, colorCalibration)
+                const cmyk = rgbToCmyk(c)
+                switch (ch) {
+                    case 'red': return c[0]
+                    case 'green': return c[1]
+                    case 'blue': return c[2]
+                    case 'cyan': return cmyk[0] * 100
+                    case 'magenta': return cmyk[1] * 100
+                    case 'yellow': return cmyk[2] * 100
+                    case 'black': return cmyk[3] * 100
+                    case 'magnitude': return Math.sqrt(c[0] ** 2 + c[1] ** 2 + c[2] ** 2)
+                    default: return 0
+                }
+            }
+            const values = currentShapes.map(s => getChannelValue(s.color, heatmapChannel))
+            const minV = Math.min(...values)
+            const maxV = Math.max(...values)
+
+            currentShapes.forEach((shape, i) => {
+                const hc = computeHeatmapColor(values[i], minV, maxV)
+                ctx.globalAlpha = 0.55
+                ctx.fillStyle = `rgb(${hc[0]},${hc[1]},${hc[2]})`
+                if (shape.type === 'circle') {
+                    ctx.beginPath()
+                    ctx.arc(shape.x, shape.y, shape.radius || 0, 0, 2 * Math.PI)
+                    ctx.fill()
+                } else {
+                    ctx.fillRect(shape.x, shape.y, shape.width || 0, shape.height || 0)
+                }
+                ctx.globalAlpha = 1
+            })
+
+            // Legend bar
+            const legendW = 120 / zoomLevel
+            const legendH = 12 / zoomLevel
+            const legendX = currentImage.width - legendW - 10 / zoomLevel
+            const legendY = currentImage.height - legendH - 25 / zoomLevel
+            for (let i = 0; i < 60; i++) {
+                const t = i / 59
+                const lc = computeHeatmapColor(minV + t * (maxV - minV), minV, maxV)
+                ctx.fillStyle = `rgb(${lc[0]},${lc[1]},${lc[2]})`
+                ctx.fillRect(legendX + (legendW * i) / 60, legendY, legendW / 60 + 1, legendH)
+            }
+            ctx.fillStyle = 'white'
+            ctx.strokeStyle = 'black'
+            ctx.lineWidth = 2 / zoomLevel
+            ctx.font = `${10 / zoomLevel}px sans-serif`
+            ctx.strokeText(minV.toFixed(0), legendX, legendY + legendH + 10 / zoomLevel)
+            ctx.fillText(minV.toFixed(0), legendX, legendY + legendH + 10 / zoomLevel)
+            const maxLabel = maxV.toFixed(0)
+            const maxLabelW = ctx.measureText(maxLabel).width
+            ctx.strokeText(maxLabel, legendX + legendW - maxLabelW, legendY + legendH + 10 / zoomLevel)
+            ctx.fillText(maxLabel, legendX + legendW - maxLabelW, legendY + legendH + 10 / zoomLevel)
+        }
+
+        // Plate template overlay (positioning mode)
+        if (plateOverlay) {
+            const { template, x: px, y: py, width: pw, height: ph } = plateOverlay
+            const cellW = pw / template.cols
+            const cellH = ph / template.rows
+            const r = Math.min(cellW, cellH) * 0.38
+
+            // Outer boundary
+            ctx.strokeStyle = '#a855f7'
+            ctx.lineWidth = 2 / zoomLevel
+            ctx.setLineDash([6 / zoomLevel, 4 / zoomLevel])
+            ctx.strokeRect(px, py, pw, ph)
+            ctx.setLineDash([])
+
+            // Wells
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)'
+            ctx.lineWidth = 1.5 / zoomLevel
+            for (let row = 0; row < template.rows; row++) {
+                for (let col = 0; col < template.cols; col++) {
+                    const cx = px + cellW * (col + 0.5)
+                    const cy = py + cellH * (row + 0.5)
+                    ctx.beginPath()
+                    ctx.arc(cx, cy, r, 0, 2 * Math.PI)
+                    ctx.stroke()
+                }
+            }
+
+            // Corner drag handles
+            const handleSize = 8 / zoomLevel
+            ctx.fillStyle = '#a855f7'
+            for (const [hx, hy] of [[px, py], [px + pw, py], [px, py + ph], [px + pw, py + ph]]) {
+                ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize)
+            }
+
+            // Label
+            ctx.fillStyle = '#a855f7'
+            ctx.font = `bold ${14 / zoomLevel}px sans-serif`
+            ctx.fillText(`${template.size}-well`, px + 4 / zoomLevel, py - 6 / zoomLevel)
+        }
+
         // Draw draft shape
         if (currentDraftShape && isDrawing) {
             ctx.beginPath()
@@ -303,7 +417,7 @@ export function ImageViewer() {
         }
 
         ctx.restore()
-    }, [currentImage, zoomLevel, rotationAngle, offset, shapes, currentImageIndex, currentDraftShape, isDrawing, drawingMode, detectionSettings.restrictedArea, selectedShapeId, boundingBox, preprocessedImage])
+    }, [currentImage, zoomLevel, rotationAngle, offset, shapes, currentImageIndex, currentDraftShape, isDrawing, drawingMode, detectionSettings.restrictedArea, selectedShapeId, boundingBox, preprocessedImage, heatmapMode, heatmapChannel, rawRgbMode, colorCalibration, plateOverlay])
 
     useEffect(() => {
         draw()
@@ -357,6 +471,32 @@ export function ImageViewer() {
 
     const handleMouseDown = (e: React.MouseEvent) => {
         const isCalibrating = calibrationModeRef.current !== 'none'
+
+        // Plate overlay corner drag
+        if (plateOverlay && setPlateOverlay) {
+            const pt = getImagePoint(e)
+            const { x: px, y: py, width: pw, height: ph } = plateOverlay
+            const tol = 15 / zoomLevel
+            const corners = [
+                { name: 'tl', cx: px, cy: py },
+                { name: 'tr', cx: px + pw, cy: py },
+                { name: 'bl', cx: px, cy: py + ph },
+                { name: 'br', cx: px + pw, cy: py + ph },
+            ]
+            for (const c of corners) {
+                if (Math.abs(pt.x - c.cx) < tol && Math.abs(pt.y - c.cy) < tol) {
+                    setPlateDragCorner(c.name)
+                    setPlateDragStart({ x: pt.x, y: pt.y, overlay: { ...plateOverlay } })
+                    return
+                }
+            }
+            // Check body drag (inside the plate boundary)
+            if (pt.x >= px && pt.x <= px + pw && pt.y >= py && pt.y <= py + ph) {
+                setPlateDragCorner('body')
+                setPlateDragStart({ x: pt.x, y: pt.y, overlay: { ...plateOverlay } })
+                return
+            }
+        }
 
         // Pan mode: middle click, alt+click, spacebar
         if (e.button === 1 || (e.button === 0 && e.altKey) || spacePressed) {
@@ -412,6 +552,27 @@ export function ImageViewer() {
     }
 
     const handleMouseMove = (e: React.MouseEvent) => {
+        // Plate overlay drag
+        if (plateDragCorner && plateDragStart && plateOverlay && setPlateOverlay) {
+            const pt = getImagePoint(e)
+            const dx = pt.x - plateDragStart.x
+            const dy = pt.y - plateDragStart.y
+            const o = plateDragStart.overlay
+
+            if (plateDragCorner === 'body') {
+                setPlateOverlay({ ...plateOverlay, x: o.x + dx, y: o.y + dy })
+            } else if (plateDragCorner === 'tl') {
+                setPlateOverlay({ ...plateOverlay, x: o.x + dx, y: o.y + dy, width: o.width - dx, height: o.height - dy })
+            } else if (plateDragCorner === 'tr') {
+                setPlateOverlay({ ...plateOverlay, y: o.y + dy, width: o.width + dx, height: o.height - dy })
+            } else if (plateDragCorner === 'bl') {
+                setPlateOverlay({ ...plateOverlay, x: o.x + dx, width: o.width - dx, height: o.height + dy })
+            } else if (plateDragCorner === 'br') {
+                setPlateOverlay({ ...plateOverlay, width: o.width + dx, height: o.height + dy })
+            }
+            return
+        }
+
         // Shape drag/resize
         if (shapeDragState) {
             const pt = getImagePoint(e)
@@ -506,6 +667,13 @@ export function ImageViewer() {
     }
 
     const handleMouseUp = () => {
+        // Finalize plate drag
+        if (plateDragCorner) {
+            setPlateDragCorner(null)
+            setPlateDragStart(null)
+            return
+        }
+
         // Finalize shape drag
         if (shapeDragState) {
             // Re-extract color after drag
@@ -855,7 +1023,41 @@ export function ImageViewer() {
                         </Button>
                     </>
                 )}
+                <div className="w-full h-px bg-muted-foreground/30 my-0.5" />
+                <Button
+                    size="icon"
+                    variant={heatmapMode ? 'default' : 'ghost'}
+                    onClick={() => setHeatmapMode(!heatmapMode)}
+                    title={heatmapMode ? "Disable heatmap" : "Enable heatmap overlay"}
+                    className="h-9 w-9 md:h-8 md:w-8"
+                >
+                    <Thermometer className="h-4 w-4" />
+                </Button>
+                {heatmapMode && (
+                    <select
+                        value={heatmapChannel}
+                        onChange={e => setHeatmapChannel(e.target.value)}
+                        className="w-full bg-background border rounded px-1 py-0.5 text-[9px]"
+                        title="Heatmap channel"
+                    >
+                        {(['red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 'black', 'magnitude'] as ColorChannel[]).map(ch => (
+                            <option key={ch} value={ch}>{ch.slice(0, 3).toUpperCase()}</option>
+                        ))}
+                    </select>
+                )}
             </div>
+
+            {/* Plate template confirm/cancel toolbar */}
+            {plateOverlay && onConfirmPlate && setPlateOverlay && (
+                <div className="absolute top-2 right-2 md:right-4 flex gap-1 bg-card/95 backdrop-blur-lg p-1.5 rounded-lg shadow-xl border border-purple-500/40 z-10">
+                    <Button size="sm" variant="default" onClick={onConfirmPlate} className="h-7 px-2 text-xs bg-purple-600 hover:bg-purple-700">
+                        <Check className="h-3.5 w-3.5 mr-1" /> Confirm Plate
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setPlateOverlay(null)} className="h-7 px-2 text-xs">
+                        <X className="h-3.5 w-3.5 mr-1" /> Cancel
+                    </Button>
+                </div>
+            )}
 
             {/* Zoom/Rotation Controls */}
             <div className="absolute bottom-18 md:bottom-4 right-2 md:right-4 flex gap-0.5 md:gap-1 bg-card/95 backdrop-blur-lg p-1 md:p-1.5 rounded-lg shadow-xl border border-border/40">

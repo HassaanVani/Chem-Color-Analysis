@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Scatter } from 'react-chartjs-2'
 import { rgbToCmyk } from '@/lib/imageUtils'
 import { calibrateColor } from '@/lib/colorCalibration'
-import { Download, Upload, FileSpreadsheet, Layers, ImageDown, ClipboardCopy, Loader2, X } from 'lucide-react'
+import { Download, Upload, FileSpreadsheet, Layers, ImageDown, ClipboardCopy, Loader2, X, GitCompareArrows, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Shape, CommittedPoint } from '@/types'
+import { parseConcentrationCSV } from '@/lib/plateUtils'
 import {
     fitLinear, fitQuadratic, fitPower, fitLogarithmic, fitBest,
     evaluateModel, predict as predictFromModel, formatEquation,
@@ -178,6 +179,82 @@ function DilutionSeriesModal({ shapes, onApply, onClose }: {
     )
 }
 
+function CSVImportModal({ shapes, onApply, onClose }: {
+    shapes: Shape[]
+    onApply: (points: CommittedPoint[]) => void
+    onClose: () => void
+}) {
+    const [csvText, setCsvText] = useState('')
+    const fileRef = useRef<HTMLInputElement>(null)
+
+    const parsed = parseConcentrationCSV(csvText)
+    const shapeLabels = new Set(shapes.map(s => s.label))
+    const matched = parsed.filter(p => shapeLabels.has(p.label))
+    const unmatched = parsed.filter(p => !shapeLabels.has(p.label))
+
+    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = () => { if (typeof reader.result === 'string') setCsvText(reader.result) }
+        reader.readAsText(file)
+    }
+
+    return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-card border rounded-xl shadow-2xl max-w-md w-full mx-4 p-4 space-y-3" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">Import Concentrations (CSV)</h3>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Paste or upload CSV with <code className="bg-muted px-1 rounded">label,concentration</code> per line.</p>
+                <textarea
+                    value={csvText}
+                    onChange={e => setCsvText(e.target.value)}
+                    placeholder={"A1,0.5\nA2,1.0\nA3,2.0\n..."}
+                    className="w-full h-28 bg-background border rounded p-2 text-xs font-mono resize-none"
+                />
+                <div className="flex items-center gap-2">
+                    <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={handleFile} />
+                    <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+                        <Upload className="h-3 w-3 mr-1" /> Upload File
+                    </Button>
+                    <span className="text-[10px] text-muted-foreground flex-1 text-right">
+                        {parsed.length > 0 && `${matched.length} matched, ${unmatched.length} unmatched`}
+                    </span>
+                </div>
+                {matched.length > 0 && (
+                    <div className="border rounded p-2 bg-muted/30 max-h-32 overflow-y-auto">
+                        <div className="text-[10px] text-muted-foreground mb-1">Preview ({matched.length} points):</div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs font-mono">
+                            {matched.map(p => (
+                                <div key={p.label} className="flex justify-between">
+                                    <span className="font-bold">{p.label}</span>
+                                    <span>{p.concentration}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {unmatched.length > 0 && (
+                    <p className="text-[10px] text-amber-500">
+                        {unmatched.length} label(s) not found: {unmatched.slice(0, 5).map(u => u.label).join(', ')}{unmatched.length > 5 ? '...' : ''}
+                    </p>
+                )}
+                <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+                    <Button size="sm" className="flex-1" disabled={matched.length === 0} onClick={() => {
+                        onApply(matched.map(m => ({ label: m.label, y: m.concentration })))
+                        onClose()
+                    }}>
+                        Apply {matched.length > 0 && `(${matched.length})`}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 interface ExportedModel {
     version: string
     exportDate: string
@@ -202,6 +279,8 @@ export function RegressionStudio() {
     const [predictionChannel, setPredictionChannel] = useState<ColorChannel | 'auto'>('auto')
     const [excludedPoints, setExcludedPoints] = useState<Set<string>>(new Set())
     const [showResiduals, setShowResiduals] = useState(false)
+    const [multiModelMode, setMultiModelMode] = useState(false)
+    const [showCSVImport, setShowCSVImport] = useState(false)
     const [mobileRegTab, setMobileRegTab] = useState<'data' | 'charts'>('data')
 
     const getDisplayColor = (color: [number, number, number]): [number, number, number] => {
@@ -351,6 +430,99 @@ export function RegressionStudio() {
         }
         setRegressionModels(newModels)
         toast('Regression complete', 'success')
+    }
+
+    const handleAutoExcludeOutliers = () => {
+        const channelResiduals = residualsData[effectivePredChannel]
+        if (!channelResiduals || channelResiduals.length === 0) {
+            toast('Run regression first to identify outliers', 'info')
+            return
+        }
+        const outlierLabels = channelResiduals
+            .filter(r => Math.abs(r.standardizedResidual) > 2)
+            .map(r => r.label)
+        if (outlierLabels.length === 0) {
+            toast('No outliers detected (all |std. residual| < 2)', 'info')
+            return
+        }
+        const beforeR2 = regressionModels[effectivePredChannel]?.r2
+        setExcludedPoints(prev => {
+            const next = new Set(prev)
+            outlierLabels.forEach(l => next.add(l))
+            return next
+        })
+        const r2Text = beforeR2 !== undefined ? ` (was R\u00b2=${beforeR2.toFixed(4)})` : ''
+        toast(`Excluded ${outlierLabels.length} outlier(s)${r2Text}`, 'success')
+    }
+
+    const createMultiModelChartData = (channel: ColorChannel) => {
+        const dataPoints = committedPoints
+            .filter(pt => !excludedPoints.has(pt.label))
+            .map(pt => {
+                const shape = shapes.find(s => s.label === pt.label)
+                if (!shape) return null
+                return { x: pt.y, y: getColorValue(shape.color, channel), label: pt.label, color: shape.color, stdDev: shape.colorStdDev }
+            })
+            .filter(Boolean) as { x: number; y: number; label: string; color: [number, number, number]; stdDev?: [number, number, number] }[]
+
+        const datasets: ChartDataset<'scatter'>[] = [{
+            label: channel.charAt(0).toUpperCase() + channel.slice(1),
+            data: dataPoints,
+            borderColor: channelColors[channel],
+            backgroundColor: channelColors[channel],
+            pointRadius: 8,
+            pointHoverRadius: 12,
+            showLine: false
+        }]
+
+        if (dataPoints.length < 2) return { datasets }
+
+        const xs = dataPoints.map(p => p.x)
+        const ys = dataPoints.map(p => p.y)
+        const minX = Math.min(...xs) * 0.9
+        const maxX = Math.max(...xs) * 1.1
+
+        const modelConfigs: { type: RegressionModelType; color: string; dash: number[]; label: string }[] = [
+            { type: 'linear', color: '#ffffff', dash: [], label: 'Linear' },
+            { type: 'quadratic', color: '#06b6d4', dash: [5, 5], label: 'Quadratic' },
+            { type: 'power', color: '#f59e0b', dash: [2, 2], label: 'Power' },
+            { type: 'logarithmic', color: '#ec4899', dash: [10, 5, 2, 5], label: 'Logarithmic' },
+        ]
+
+        for (const cfg of modelConfigs) {
+            let model: RegressionModel | null = null
+            try {
+                switch (cfg.type) {
+                    case 'linear': model = fitLinear(xs, ys); break
+                    case 'quadratic': model = fitQuadratic(xs, ys); break
+                    case 'power': model = fitPower(xs, ys); break
+                    case 'logarithmic': model = fitLogarithmic(xs, ys); break
+                }
+            } catch { /* skip models that fail */ }
+            if (!model || !isFinite(model.r2)) continue
+
+            const numPoints = model.type === 'linear' ? 2 : 50
+            const step = (maxX - minX) / (numPoints - 1)
+            const curveData = []
+            for (let i = 0; i < numPoints; i++) {
+                const x = minX + step * i
+                const y = evaluateModel(model, x)
+                if (isFinite(y)) curveData.push({ x, y })
+            }
+
+            datasets.push({
+                label: `${cfg.label} (R\u00b2=${model.r2.toFixed(4)})`,
+                data: curveData,
+                borderColor: cfg.color,
+                backgroundColor: 'transparent',
+                borderDash: cfg.dash,
+                pointRadius: 0,
+                showLine: true,
+                borderWidth: 2
+            })
+        }
+
+        return { datasets }
     }
 
     const exportModel = () => {
@@ -723,7 +895,7 @@ export function RegressionStudio() {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: overlayMode },
+            legend: { display: overlayMode || multiModelMode, labels: { font: { size: 10 } } },
             tooltip: {
                 callbacks: {
                     label: (context: TooltipItem<'scatter'>) => {
@@ -827,10 +999,16 @@ export function RegressionStudio() {
                     ))}
                     <div className="w-px h-4 bg-border/40 mx-1 shrink-0" />
                     <button
-                        onClick={() => setOverlayMode(!overlayMode)}
+                        onClick={() => { setOverlayMode(!overlayMode); if (!overlayMode) setMultiModelMode(false) }}
                         className={`shrink-0 px-1.5 py-1 text-[11px] rounded transition-all flex items-center gap-1 ${overlayMode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
                     >
                         <Layers className="h-3 w-3" /> Overlay
+                    </button>
+                    <button
+                        onClick={() => { setMultiModelMode(!multiModelMode); if (!multiModelMode) setOverlayMode(false) }}
+                        className={`shrink-0 px-1.5 py-1 text-[11px] rounded transition-all flex items-center gap-1 ${multiModelMode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                    >
+                        <GitCompareArrows className="h-3 w-3" /> Compare
                     </button>
                     <button
                         onClick={() => setShowResiduals(!showResiduals)}
@@ -887,6 +1065,12 @@ export function RegressionStudio() {
                         <div className="flex gap-1">
                             <button onClick={() => setShowDilutionModal(true)} className="px-1.5 py-0.5 text-[10px] bg-muted rounded hover:bg-muted-foreground/20" title="Fill dilution series">
                                 Fill Series
+                            </button>
+                            <button onClick={() => setShowCSVImport(true)} className="px-1.5 py-0.5 text-[10px] bg-muted rounded hover:bg-muted-foreground/20" title="Import concentrations from CSV">
+                                CSV
+                            </button>
+                            <button onClick={handleAutoExcludeOutliers} className="px-1.5 py-0.5 text-[10px] bg-muted rounded hover:bg-muted-foreground/20 flex items-center gap-0.5" title="Auto-exclude points with |std. residual| > 2" disabled={Object.keys(regressionModels).length === 0}>
+                                <Zap className="h-2.5 w-2.5" /> Outliers
                             </button>
                             <button onClick={() => setCommittedPoints([])} className="px-1.5 py-0.5 text-[10px] bg-muted rounded hover:bg-muted-foreground/20 text-destructive" title="Clear all concentrations" disabled={committedPoints.length === 0}>
                                 Clear
@@ -1026,18 +1210,20 @@ export function RegressionStudio() {
                             {activeCharts.map(ch => (
                                 <div key={ch} className="bg-card border rounded-lg p-3">
                                     <div className="flex items-center justify-between mb-2">
-                                        <h4 className="text-xs font-semibold capitalize" style={{ color: channelColors[ch] }}>{ch}</h4>
-                                        {regressionModels[ch] && (
+                                        <h4 className="text-xs font-semibold capitalize" style={{ color: channelColors[ch] }}>
+                                            {ch}{multiModelMode ? ' — Model Comparison' : ''}
+                                        </h4>
+                                        {!multiModelMode && regressionModels[ch] && (
                                             <span className="text-[10px] text-muted-foreground">
                                                 R² = {regressionModels[ch].r2.toFixed(3)}
                                             </span>
                                         )}
                                     </div>
-                                    <div className="h-40 md:h-48">
+                                    <div className={multiModelMode ? "h-52 md:h-64" : "h-40 md:h-48"}>
                                         <Scatter
                                             options={chartOptions(ch)}
-                                            data={createChartData(ch)}
-                                            plugins={[errorBarPlugin]}
+                                            data={multiModelMode ? createMultiModelChartData(ch) : createChartData(ch)}
+                                            plugins={multiModelMode ? [] : [errorBarPlugin]}
                                         />
                                     </div>
                                 </div>
@@ -1126,6 +1312,19 @@ export function RegressionStudio() {
                         })
                     }}
                     onClose={() => setShowDilutionModal(false)}
+                />
+            )}
+            {showCSVImport && (
+                <CSVImportModal
+                    shapes={shapes}
+                    onApply={(points) => {
+                        setCommittedPoints(prev => {
+                            const newLabels = new Set(points.map(p => p.label))
+                            const kept = prev.filter(p => !newLabels.has(p.label))
+                            return [...kept, ...points]
+                        })
+                    }}
+                    onClose={() => setShowCSVImport(false)}
                 />
             )}
         </div>

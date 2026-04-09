@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import {
   Settings, Image as ImageIcon, BarChart3, Upload, Trash2,
   Wand2, Grid, ChevronLeft, ChevronRight, Palette, ListTree, Loader2,
-  Menu, X, ChevronDown, ChevronUp, Plus, HelpCircle, Undo2, Redo2, CheckCircle2, PlayCircle, Keyboard, RefreshCw, Camera, SwatchBook
+  Menu, X, ChevronDown, ChevronUp, Plus, HelpCircle, Undo2, Redo2, CheckCircle2, PlayCircle, Keyboard, RefreshCw, Camera, SwatchBook, LayoutGrid
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/context/AppContext'
@@ -17,6 +17,9 @@ import { ColorAnalysisPanel } from '@/components/features/ColorAnalysisPanel'
 import { Tutorial } from '@/components/features/Tutorial'
 import { KeyboardShortcuts } from '@/components/features/KeyboardShortcuts'
 import { isOpenCVReady, autoDetectCircles, autoDetectRectangles } from '@/lib/opencvUtils'
+import { computeCircleConfidence, computeRectConfidence } from '@/lib/confidenceUtils'
+import { PLATE_CONFIGS, getPlateTemplate, generatePlateShapes } from '@/lib/plateUtils'
+import type { WellPlateSize, PlateOverlayState } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useServiceWorker } from '@/hooks/useServiceWorker'
 import { PWAStatus } from '@/components/ui/pwa-status'
@@ -32,6 +35,8 @@ function App() {
   const [showTutorial, setShowTutorial] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [showPlateMenu, setShowPlateMenu] = useState(false)
+  const [plateOverlay, setPlateOverlay] = useState<PlateOverlayState | null>(null)
   const [colorScheme, setColorScheme] = useState<'labline' | 'midnight'>('midnight')
   const toggleColorScheme = () => {
     const next = colorScheme === 'labline' ? 'midnight' : 'labline'
@@ -156,6 +161,55 @@ function App() {
     }
   }
 
+  const handlePlateTemplate = (size: WellPlateSize) => {
+    const currentImage = images[currentImageIndex]
+    if (!currentImage) return
+    setShowPlateMenu(false)
+    const template = getPlateTemplate(size)
+    const imgW = currentImage.naturalWidth || currentImage.width
+    const imgH = currentImage.naturalHeight || currentImage.height
+    // Default: 80% of image, centered
+    const w = imgW * 0.8
+    const h = imgH * 0.8
+    setPlateOverlay({
+      template,
+      x: (imgW - w) / 2,
+      y: (imgH - h) / 2,
+      width: w,
+      height: h,
+    })
+  }
+
+  const handleConfirmPlateOverlay = () => {
+    if (!plateOverlay) return
+    const currentImage = images[currentImageIndex]
+    if (!currentImage) return
+    const newShapes = generatePlateShapes(plateOverlay, currentImageIndex, currentImage, detectionSettings.restrictedArea)
+    const scored = scoreShapeConfidence(newShapes, currentImage)
+    setShapes(prev => [
+      ...prev.filter(s => s.imageIndex !== currentImageIndex),
+      ...scored
+    ])
+    setPlateOverlay(null)
+    toast(`Generated ${scored.length} wells (${plateOverlay.template.size}-well plate)`, 'success')
+  }
+
+  const scoreShapeConfidence = (shapesToScore: typeof shapes, image: HTMLImageElement) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth || image.width
+    canvas.height = image.naturalHeight || image.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return shapesToScore
+    ctx.drawImage(image, 0, 0)
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    return shapesToScore.map(s => ({
+      ...s,
+      confidence: s.type === 'circle'
+        ? computeCircleConfidence(imgData, s)
+        : computeRectConfidence(imgData, s)
+    }))
+  }
+
   const handleAutoDetect = async () => {
     if (!isOpenCVReady()) {
       toast('OpenCV.js is still loading. Please wait a moment and try again.', 'error')
@@ -181,11 +235,12 @@ function App() {
         if (newShapes.length === 0) {
           toast('No shapes detected. Try adjusting the detection parameters.', 'info')
         } else {
+          const scored = scoreShapeConfidence(newShapes, currentImage)
           setShapes(prev => [
             ...prev.filter(s => s.imageIndex !== currentImageIndex),
-            ...newShapes
+            ...scored
           ])
-          toast(`Detected ${newShapes.length} shape${newShapes.length > 1 ? 's' : ''}`, 'success')
+          toast(`Detected ${scored.length} shape${scored.length > 1 ? 's' : ''}`, 'success')
         }
       } catch (error) {
         console.error('Detection error:', error)
@@ -219,7 +274,8 @@ function App() {
         } else {
           detected = autoDetectRectangles(images[i], detectionSettings, i, existingLabels, null)
         }
-        allNewShapes.push(...detected)
+        const scored = scoreShapeConfidence(detected, images[i])
+        allNewShapes.push(...scored)
       } catch (error) {
         console.error(`Detection failed for image ${i + 1}:`, error)
       }
@@ -396,6 +452,22 @@ function App() {
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleAutoDetect} disabled={images.length === 0 || isDetecting} data-tutorial="autodetect" title="Auto-detect">{isDetecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}</Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleBatchDetect} disabled={images.length === 0 || isDetecting} title="Detect all"><PlayCircle className="h-3.5 w-3.5" /></Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => clearShapesForImage(currentImageIndex)} disabled={images.length === 0} title="Clear"><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <div className="relative">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowPlateMenu(!showPlateMenu)} disabled={images.length === 0} title="Well plate template"><LayoutGrid className="h-3.5 w-3.5" /></Button>
+                    {showPlateMenu && (
+                      <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowPlateMenu(false)} />
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-card border rounded-lg shadow-xl z-20 py-1 min-w-[100px]">
+                        {([6, 12, 24, 48, 96] as WellPlateSize[]).map(size => (
+                          <button key={size} className="w-full px-3 py-1.5 text-xs text-left hover:bg-muted/50 flex justify-between items-center" onClick={() => handlePlateTemplate(size)}>
+                            <span className="font-medium">{size}-well</span>
+                            <span className="text-muted-foreground text-[10px]">{PLATE_CONFIGS[size].rows}x{PLATE_CONFIGS[size].cols}</span>
+                          </button>
+                        ))}
+                      </div>
+                      </>
+                    )}
+                  </div>
                   <div className="flex md:hidden items-center gap-0.5">
                     <div className="w-px h-3.5 bg-border/40 mx-0.5" />
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={undo} disabled={!canUndo}><Undo2 className="h-3.5 w-3.5" /></Button>
@@ -446,7 +518,7 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <ErrorBoundary fallbackTitle="Image viewer crashed"><ImageViewer /></ErrorBoundary>
+                  <ErrorBoundary fallbackTitle="Image viewer crashed"><ImageViewer plateOverlay={plateOverlay} setPlateOverlay={setPlateOverlay} onConfirmPlate={handleConfirmPlateOverlay} /></ErrorBoundary>
                 )
               ) : (
                 /* ── Empty state ── */

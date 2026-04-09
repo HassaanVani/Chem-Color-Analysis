@@ -15,6 +15,23 @@ export interface Shape {
     colorStdDev?: [number, number, number]
     imageIndex: number
     auto?: boolean
+    confidence?: number
+}
+
+export type WellPlateSize = 6 | 12 | 24 | 48 | 96
+
+export interface WellPlateTemplate {
+    size: WellPlateSize
+    rows: number
+    cols: number
+}
+
+export interface PlateOverlayState {
+    template: WellPlateTemplate
+    x: number
+    y: number
+    width: number
+    height: number
 }
 
 export interface CommittedPoint {

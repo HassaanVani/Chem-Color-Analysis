@@ -45,6 +45,10 @@ interface AppContextType extends AppState {
     redo: () => void
     canUndo: boolean
     canRedo: boolean
+    heatmapMode: boolean
+    setHeatmapMode: (mode: boolean) => void
+    heatmapChannel: string
+    setHeatmapChannel: (channel: string) => void
     // Cache controls
     clearCache: () => Promise<void>
     saveCache: () => void
@@ -71,6 +75,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
     const [calibrationMode, setCalibrationMode] = useState<'none' | 'min' | 'max' | 'white' | 'black'>('none')
     const [colorCalibration, setColorCalibration] = useState<ColorCalibration>(defaultColorCalibration)
+    const [heatmapMode, setHeatmapMode] = useState(false)
+    const [heatmapChannel, setHeatmapChannel] = useState('magnitude')
     const [isCacheLoaded, setIsCacheLoaded] = useState(false)
     const [lastSaveError, setLastSaveError] = useState<string | null>(null)
 
@@ -114,6 +120,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     if (cachedState.colorCalibration) {
                         setColorCalibration(cachedState.colorCalibration)
                     }
+                    setHeatmapMode(cachedState.heatmapMode ?? false)
+                    setHeatmapChannel(cachedState.heatmapChannel ?? 'magnitude')
                 }
             } catch (error) {
                 console.error('Error restoring cache:', error)
@@ -142,12 +150,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             zoomLevel,
             rotationAngle,
             boundingBox,
-            colorCalibration
+            colorCalibration,
+            heatmapMode,
+            heatmapChannel
         })
     }, [
         images, shapes, regressionModels, committedPoints,
         detectionSettings, colorMode, rawRgbMode, currentImageIndex,
-        isGridView, zoomLevel, rotationAngle, boundingBox, colorCalibration
+        isGridView, zoomLevel, rotationAngle, boundingBox, colorCalibration,
+        heatmapMode, heatmapChannel
     ])
 
     const clearCache = useCallback(async () => {
@@ -167,12 +178,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             zoomLevel,
             rotationAngle,
             boundingBox,
-            colorCalibration
+            colorCalibration,
+            heatmapMode,
+            heatmapChannel
         })
     }, [
         images, shapes, regressionModels, committedPoints,
         detectionSettings, colorMode, rawRgbMode, currentImageIndex,
-        isGridView, zoomLevel, rotationAngle, boundingBox, colorCalibration
+        isGridView, zoomLevel, rotationAngle, boundingBox, colorCalibration,
+        heatmapMode, heatmapChannel
     ])
 
     // Undo/redo wrappers
@@ -273,6 +287,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             selectedShapeId, setSelectedShapeId,
             calibrationMode, setCalibrationMode,
             colorCalibration, setColorCalibration,
+            heatmapMode, setHeatmapMode,
+            heatmapChannel, setHeatmapChannel,
             undo, redo,
             canUndo: undoRedo.canUndo,
             canRedo: undoRedo.canRedo,

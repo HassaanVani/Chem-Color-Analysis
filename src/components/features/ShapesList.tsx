@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Trash2, ArrowUpDown, ArrowDown, ArrowUp, ArrowRight, ArrowLeft, X, Pipette } from 'lucide-react'
 import { rgbToCmyk, rgbToHsl, rgbToHsv } from '@/lib/imageUtils'
 import { calibrateColor } from '@/lib/colorCalibration'
+import { getConfidenceColor } from '@/lib/confidenceUtils'
 
 type SortDirection = 'top-to-bottom' | 'left-to-right'
 type SortOrder = 'ascending' | 'descending'
@@ -280,10 +281,21 @@ export function ShapesList() {
 
                             {/* Label + color info */}
                             <div className="flex-1 min-w-0 space-y-0.5">
-                                <EditableLabel
-                                    value={shape.label}
-                                    onChange={(v) => updateShape(shape.id, { label: v })}
-                                />
+                                <div className="flex items-center gap-1.5">
+                                    <EditableLabel
+                                        value={shape.label}
+                                        onChange={(v) => updateShape(shape.id, { label: v })}
+                                    />
+                                    {shape.confidence !== undefined && (
+                                        <span
+                                            className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full leading-none"
+                                            style={{ backgroundColor: getConfidenceColor(shape.confidence), color: shape.confidence >= 0.4 ? '#000' : '#fff' }}
+                                            title={`Detection confidence: ${(shape.confidence * 100).toFixed(0)}%`}
+                                        >
+                                            {(shape.confidence * 100).toFixed(0)}%
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-[11px] font-mono text-muted-foreground tracking-wide truncate">
                                         {formatColor(shape.color)}

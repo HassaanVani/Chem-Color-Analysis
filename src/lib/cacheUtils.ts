@@ -36,6 +36,8 @@ interface CachedAppState {
     boundingBox: { x: number; y: number; width: number; height: number } | null
     imageCount: number
     colorCalibration?: ColorCalibration
+    heatmapMode?: boolean
+    heatmapChannel?: string
 }
 
 let dbInstance: IDBDatabase | null = null
