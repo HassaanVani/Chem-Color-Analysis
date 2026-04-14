@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid'
 import type { Shape, WellPlateSize, WellPlateTemplate, PlateOverlayState } from '@/types'
 
 export const PLATE_CONFIGS: Record<WellPlateSize, { rows: number; cols: number }> = {
+    5: { rows: 1, cols: 5 },
     6: { rows: 2, cols: 3 },
     12: { rows: 3, cols: 4 },
     24: { rows: 4, cols: 6 },
@@ -31,11 +32,18 @@ export function generatePlateShapes(
     image: HTMLImageElement,
     restrictedArea: number
 ): Shape[] {
-    const { template, x, y, width, height } = overlay
+    const { template, x, y, width, height, rotation, wellRadiusFactor } = overlay
     const cellW = width / template.cols
     const cellH = height / template.rows
-    const radius = Math.min(cellW, cellH) * 0.38
+    const radius = Math.min(cellW, cellH) * (wellRadiusFactor ?? 0.38)
     const labels = generateWellLabels(template.rows, template.cols)
+
+    // Rotation math
+    const centerX = x + width / 2
+    const centerY = y + height / 2
+    const rad = (rotation ?? 0) * Math.PI / 180
+    const cosA = Math.cos(rad)
+    const sinA = Math.sin(rad)
 
     // Create a temporary canvas to extract colors
     const canvas = document.createElement('canvas')
@@ -48,8 +56,12 @@ export function generatePlateShapes(
     const shapes: Shape[] = []
     for (let r = 0; r < template.rows; r++) {
         for (let c = 0; c < template.cols; c++) {
-            const cx = x + cellW * (c + 0.5)
-            const cy = y + cellH * (r + 0.5)
+            // Unrotated position relative to plate center
+            const localX = x + cellW * (c + 0.5) - centerX
+            const localY = y + cellH * (r + 0.5) - centerY
+            // Apply rotation
+            const cx = centerX + localX * cosA - localY * sinA
+            const cy = centerY + localX * sinA + localY * cosA
             const idx = r * template.cols + c
 
             const color = extractCircleColor(ctx, cx, cy, radius, restrictedArea)

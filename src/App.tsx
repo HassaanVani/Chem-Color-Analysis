@@ -19,6 +19,7 @@ import { KeyboardShortcuts } from '@/components/features/KeyboardShortcuts'
 import { isOpenCVReady, autoDetectCircles, autoDetectRectangles } from '@/lib/opencvUtils'
 import { computeCircleConfidence, computeRectConfidence } from '@/lib/confidenceUtils'
 import { PLATE_CONFIGS, getPlateTemplate, generatePlateShapes } from '@/lib/plateUtils'
+import { savePlatePreset, loadPlatePreset } from '@/lib/cacheUtils'
 import type { WellPlateSize, PlateOverlayState } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useServiceWorker } from '@/hooks/useServiceWorker'
@@ -168,22 +169,46 @@ function App() {
     const template = getPlateTemplate(size)
     const imgW = currentImage.naturalWidth || currentImage.width
     const imgH = currentImage.naturalHeight || currentImage.height
-    // Default: 80% of image, centered
-    const w = imgW * 0.8
-    const h = imgH * 0.8
-    setPlateOverlay({
-      template,
-      x: (imgW - w) / 2,
-      y: (imgH - h) / 2,
-      width: w,
-      height: h,
-    })
+
+    // Try to load a cached preset for this plate size + image aspect ratio
+    const cached = loadPlatePreset(size, imgW, imgH)
+    if (cached) {
+      setPlateOverlay({
+        template,
+        x: cached.x,
+        y: cached.y,
+        width: cached.width,
+        height: cached.height,
+        rotation: cached.rotation,
+        wellRadiusFactor: cached.wellRadiusFactor,
+      })
+      toast('Restored saved plate preset', 'info')
+    } else {
+      // Default: 80% of image, centered
+      const w = imgW * 0.8
+      const h = imgH * 0.8
+      setPlateOverlay({
+        template,
+        x: (imgW - w) / 2,
+        y: (imgH - h) / 2,
+        width: w,
+        height: h,
+        rotation: 0,
+        wellRadiusFactor: 0.38,
+      })
+    }
   }
 
   const handleConfirmPlateOverlay = () => {
     if (!plateOverlay) return
     const currentImage = images[currentImageIndex]
     if (!currentImage) return
+
+    // Save this overlay as a preset for future images with similar dimensions
+    const imgW = currentImage.naturalWidth || currentImage.width
+    const imgH = currentImage.naturalHeight || currentImage.height
+    savePlatePreset(plateOverlay.template.size, imgW, imgH, plateOverlay)
+
     const newShapes = generatePlateShapes(plateOverlay, currentImageIndex, currentImage, detectionSettings.restrictedArea)
     const scored = scoreShapeConfidence(newShapes, currentImage)
     setShapes(prev => [
@@ -456,15 +481,15 @@ function App() {
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowPlateMenu(!showPlateMenu)} disabled={images.length === 0} title="Well plate template"><LayoutGrid className="h-3.5 w-3.5" /></Button>
                     {showPlateMenu && (
                       <>
-                      <div className="fixed inset-0 z-10" onClick={() => setShowPlateMenu(false)} />
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-card border rounded-lg shadow-xl z-20 py-1 min-w-[100px]">
-                        {([6, 12, 24, 48, 96] as WellPlateSize[]).map(size => (
-                          <button key={size} className="w-full px-3 py-1.5 text-xs text-left hover:bg-muted/50 flex justify-between items-center" onClick={() => handlePlateTemplate(size)}>
-                            <span className="font-medium">{size}-well</span>
-                            <span className="text-muted-foreground text-[10px]">{PLATE_CONFIGS[size].rows}x{PLATE_CONFIGS[size].cols}</span>
-                          </button>
-                        ))}
-                      </div>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowPlateMenu(false)} />
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-card border rounded-lg shadow-xl z-20 py-1 min-w-[100px]">
+                          {([5, 6, 12, 24, 48, 96] as WellPlateSize[]).map(size => (
+                            <button key={size} className="w-full px-3 py-1.5 text-xs text-left hover:bg-muted/50 flex justify-between items-center" onClick={() => handlePlateTemplate(size)}>
+                              <span className="font-medium">{size}-well</span>
+                              <span className="text-muted-foreground text-[10px]">{PLATE_CONFIGS[size].rows}x{PLATE_CONFIGS[size].cols}</span>
+                            </button>
+                          ))}
+                        </div>
                       </>
                     )}
                   </div>

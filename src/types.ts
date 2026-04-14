@@ -18,7 +18,7 @@ export interface Shape {
     confidence?: number
 }
 
-export type WellPlateSize = 6 | 12 | 24 | 48 | 96
+export type WellPlateSize = 5 | 6 | 12 | 24 | 48 | 96
 
 export interface WellPlateTemplate {
     size: WellPlateSize
@@ -32,6 +32,8 @@ export interface PlateOverlayState {
     y: number
     width: number
     height: number
+    rotation: number           // degrees, around center of overlay
+    wellRadiusFactor: number   // 0.1–0.9, fraction of half-cell size
 }
 
 export interface CommittedPoint {

@@ -344,10 +344,19 @@ export function ImageViewer({ plateOverlay, setPlateOverlay, onConfirmPlate }: I
 
         // Plate template overlay (positioning mode)
         if (plateOverlay) {
-            const { template, x: px, y: py, width: pw, height: ph } = plateOverlay
+            const { template, x: px, y: py, width: pw, height: ph, rotation: plateRot, wellRadiusFactor: wrf } = plateOverlay
             const cellW = pw / template.cols
             const cellH = ph / template.rows
-            const r = Math.min(cellW, cellH) * 0.38
+            const r = Math.min(cellW, cellH) * (wrf ?? 0.38)
+            const plateCX = px + pw / 2
+            const plateCY = py + ph / 2
+            const plateRad = ((plateRot ?? 0) * Math.PI) / 180
+
+            // Apply rotation around plate center
+            ctx.save()
+            ctx.translate(plateCX, plateCY)
+            ctx.rotate(plateRad)
+            ctx.translate(-plateCX, -plateCY)
 
             // Outer boundary
             ctx.strokeStyle = '#a855f7'
@@ -380,6 +389,8 @@ export function ImageViewer({ plateOverlay, setPlateOverlay, onConfirmPlate }: I
             ctx.fillStyle = '#a855f7'
             ctx.font = `bold ${14 / zoomLevel}px sans-serif`
             ctx.fillText(`${template.size}-well`, px + 4 / zoomLevel, py - 6 / zoomLevel)
+
+            ctx.restore()
         }
 
         // Draw draft shape
@@ -475,8 +486,19 @@ export function ImageViewer({ plateOverlay, setPlateOverlay, onConfirmPlate }: I
         // Plate overlay corner drag
         if (plateOverlay && setPlateOverlay) {
             const pt = getImagePoint(e)
-            const { x: px, y: py, width: pw, height: ph } = plateOverlay
+            const { x: px, y: py, width: pw, height: ph, rotation: plateRot } = plateOverlay
             const tol = 15 / zoomLevel
+
+            // Un-rotate the mouse point into plate-local space
+            const plateCX = px + pw / 2
+            const plateCY = py + ph / 2
+            const negRad = -((plateRot ?? 0) * Math.PI) / 180
+            const cosN = Math.cos(negRad)
+            const sinN = Math.sin(negRad)
+            const dx0 = pt.x - plateCX
+            const dy0 = pt.y - plateCY
+            const localPt = { x: plateCX + dx0 * cosN - dy0 * sinN, y: plateCY + dx0 * sinN + dy0 * cosN }
+
             const corners = [
                 { name: 'tl', cx: px, cy: py },
                 { name: 'tr', cx: px + pw, cy: py },
@@ -484,14 +506,14 @@ export function ImageViewer({ plateOverlay, setPlateOverlay, onConfirmPlate }: I
                 { name: 'br', cx: px + pw, cy: py + ph },
             ]
             for (const c of corners) {
-                if (Math.abs(pt.x - c.cx) < tol && Math.abs(pt.y - c.cy) < tol) {
+                if (Math.abs(localPt.x - c.cx) < tol && Math.abs(localPt.y - c.cy) < tol) {
                     setPlateDragCorner(c.name)
                     setPlateDragStart({ x: pt.x, y: pt.y, overlay: { ...plateOverlay } })
                     return
                 }
             }
-            // Check body drag (inside the plate boundary)
-            if (pt.x >= px && pt.x <= px + pw && pt.y >= py && pt.y <= py + ph) {
+            // Check body drag (inside the plate boundary, in local space)
+            if (localPt.x >= px && localPt.x <= px + pw && localPt.y >= py && localPt.y <= py + ph) {
                 setPlateDragCorner('body')
                 setPlateDragStart({ x: pt.x, y: pt.y, overlay: { ...plateOverlay } })
                 return
@@ -1047,15 +1069,54 @@ export function ImageViewer({ plateOverlay, setPlateOverlay, onConfirmPlate }: I
                 )}
             </div>
 
-            {/* Plate template confirm/cancel toolbar */}
+            {/* Plate template controls panel */}
             {plateOverlay && onConfirmPlate && setPlateOverlay && (
-                <div className="absolute top-2 right-2 md:right-4 flex gap-1 bg-card/95 backdrop-blur-lg p-1.5 rounded-lg shadow-xl border border-purple-500/40 z-10">
-                    <Button size="sm" variant="default" onClick={onConfirmPlate} className="h-7 px-2 text-xs bg-purple-600 hover:bg-purple-700">
-                        <Check className="h-3.5 w-3.5 mr-1" /> Confirm Plate
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setPlateOverlay(null)} className="h-7 px-2 text-xs">
-                        <X className="h-3.5 w-3.5 mr-1" /> Cancel
-                    </Button>
+                <div className="absolute top-2 right-2 md:right-4 flex flex-col gap-2 bg-card/95 backdrop-blur-lg p-2.5 rounded-lg shadow-xl border border-purple-500/40 z-10 min-w-[200px]">
+                    <div className="text-[11px] font-semibold text-purple-400 tracking-wide uppercase">{plateOverlay.template.size}-Well Plate</div>
+
+                    {/* Rotation slider */}
+                    <div className="space-y-0.5">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-medium text-muted-foreground">Rotation</label>
+                            <span className="text-[10px] font-mono text-muted-foreground">{plateOverlay.rotation ?? 0}°</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="-180"
+                            max="180"
+                            step="1"
+                            value={plateOverlay.rotation ?? 0}
+                            onChange={e => setPlateOverlay({ ...plateOverlay, rotation: Number(e.target.value) })}
+                            className="w-full h-1.5 accent-purple-500 cursor-pointer"
+                        />
+                    </div>
+
+                    {/* Well radius slider */}
+                    <div className="space-y-0.5">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-medium text-muted-foreground">Well Radius</label>
+                            <span className="text-[10px] font-mono text-muted-foreground">{Math.round((plateOverlay.wellRadiusFactor ?? 0.38) * 100)}%</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="10"
+                            max="90"
+                            step="1"
+                            value={Math.round((plateOverlay.wellRadiusFactor ?? 0.38) * 100)}
+                            onChange={e => setPlateOverlay({ ...plateOverlay, wellRadiusFactor: Number(e.target.value) / 100 })}
+                            className="w-full h-1.5 accent-purple-500 cursor-pointer"
+                        />
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-1 pt-0.5">
+                        <Button size="sm" variant="default" onClick={onConfirmPlate} className="flex-1 h-7 px-2 text-xs bg-purple-600 hover:bg-purple-700">
+                            <Check className="h-3.5 w-3.5 mr-1" /> Confirm
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setPlateOverlay(null)} className="h-7 px-2 text-xs">
+                            <X className="h-3.5 w-3.5 mr-1" /> Cancel
+                        </Button>
+                    </div>
                 </div>
             )}
 

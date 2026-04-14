@@ -281,3 +281,90 @@ export function forceSaveState(
         reportSaveError(`Failed to cache images: ${e instanceof Error ? e.message : 'storage may be full'}`)
     })
 }
+
+// ============= Well Plate Preset Cache =============
+
+const PLATE_PRESETS_KEY = 'chemclub_plate_presets'
+
+/**
+ * A plate preset stores the overlay geometry as fractions of the image size
+ * so it can be re-applied to images of similar aspect ratio.
+ */
+export interface PlatePresetNormalized {
+    xFrac: number       // x / imgW
+    yFrac: number       // y / imgH
+    wFrac: number       // width / imgW
+    hFrac: number       // height / imgH
+    rotation: number
+    wellRadiusFactor: number
+}
+
+function getPresetKey(plateSize: number, imgW: number, imgH: number): string {
+    // Bucket by plate size + aspect ratio rounded to 1 decimal
+    const aspect = Math.round((imgW / imgH) * 10) / 10
+    return `${plateSize}_${aspect}`
+}
+
+function loadAllPlatePresets(): Record<string, PlatePresetNormalized> {
+    try {
+        const data = localStorage.getItem(PLATE_PRESETS_KEY)
+        if (data) return JSON.parse(data)
+    } catch (e) {
+        console.error('Error loading plate presets:', e)
+    }
+    return {}
+}
+
+function saveAllPlatePresets(presets: Record<string, PlatePresetNormalized>): void {
+    try {
+        localStorage.setItem(PLATE_PRESETS_KEY, JSON.stringify(presets))
+    } catch (e) {
+        console.error('Error saving plate presets:', e)
+    }
+}
+
+/**
+ * Save a confirmed plate overlay as a preset for this plate size + aspect ratio.
+ */
+export function savePlatePreset(
+    plateSize: number,
+    imgW: number,
+    imgH: number,
+    overlay: { x: number; y: number; width: number; height: number; rotation: number; wellRadiusFactor: number }
+): void {
+    const presets = loadAllPlatePresets()
+    const key = getPresetKey(plateSize, imgW, imgH)
+    presets[key] = {
+        xFrac: overlay.x / imgW,
+        yFrac: overlay.y / imgH,
+        wFrac: overlay.width / imgW,
+        hFrac: overlay.height / imgH,
+        rotation: overlay.rotation,
+        wellRadiusFactor: overlay.wellRadiusFactor,
+    }
+    saveAllPlatePresets(presets)
+}
+
+/**
+ * Load a cached preset for the given plate size + image dimensions.
+ * Returns null if no preset exists for this combination.
+ */
+export function loadPlatePreset(
+    plateSize: number,
+    imgW: number,
+    imgH: number
+): { x: number; y: number; width: number; height: number; rotation: number; wellRadiusFactor: number } | null {
+    const presets = loadAllPlatePresets()
+    const key = getPresetKey(plateSize, imgW, imgH)
+    const preset = presets[key]
+    if (!preset) return null
+    return {
+        x: preset.xFrac * imgW,
+        y: preset.yFrac * imgH,
+        width: preset.wFrac * imgW,
+        height: preset.hFrac * imgH,
+        rotation: preset.rotation,
+        wellRadiusFactor: preset.wellRadiusFactor,
+    }
+}
+
